@@ -14,6 +14,8 @@ import { Faq } from "@/components/landing/Faq";
 import {
   PRODUCT_VIDEO_URL,
   HOWTO_VIDEO_URL,
+  EXTRA_VIDEO_URL_01,
+  EXTRA_VIDEO_URL_02,
   FEEDBACK_SCREENSHOTS,
   PRICE,
   OLD_PRICE,
@@ -265,6 +267,13 @@ function Index() {
               <p className="mt-1 text-sm text-muted-foreground">{d}</p>
             </div>
           ))}
+        </div>
+      </Section>
+
+      <Section title="D16 Humidifier-এর আরও ভিডিও">
+        <div className="grid gap-5 md:grid-cols-2">
+          <VideoCard src={EXTRA_VIDEO_URL_01} poster={posterDemo} label="D16 Humidifier ভিডিও ১" />
+          <VideoCard src={EXTRA_VIDEO_URL_02} poster={posterHowto} label="D16 Humidifier ভিডিও ২" />
         </div>
       </Section>
 
