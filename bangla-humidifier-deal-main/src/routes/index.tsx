@@ -209,6 +209,9 @@ function Index() {
             এর সুন্দর LED Night Light রুমে তৈরি করে একটি শান্ত ও আরামদায়ক পরিবেশ। USB Powered
             হওয়ায় ল্যাপটপ, পাওয়ার ব্যাংক বা USB অ্যাডাপ্টারের মাধ্যমে সহজেই ব্যবহার করা যায়।
           </p>
+          <p className="rounded-2xl bg-brand-soft px-4 py-3 text-sm leading-relaxed text-accent-foreground">
+            সুগন্ধের জন্য আপনি চাইলে আতর, এয়ার ফ্রেশনার অথবা ঘরের পারফিউম ব্যবহার করতে পারেন।
+          </p>
           <div>
             <h3 className="font-bold">প্রধান বৈশিষ্ট্য</h3>
             <ul className="mt-2 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
