@@ -175,7 +175,12 @@ async function handleApi(request: Request): Promise<Response | null> {
       };
       
       orders.unshift(order);
-      await writeOrders(orders);
+      if (!await writeOrders(orders)) {
+        return new Response(JSON.stringify({ error: "Unable to save order" }), {
+          status: 500,
+          headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+        });
+      }
       
       return new Response(JSON.stringify(order), {
         status: 201,
@@ -308,7 +313,12 @@ async function handleApi(request: Request): Promise<Response | null> {
       }
       
       orders[idx] = order;
-      await writeOrders(orders);
+      if (!await writeOrders(orders)) {
+        return new Response(JSON.stringify({ error: "Unable to save order status" }), {
+          status: 500,
+          headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+        });
+      }
       
       return new Response(JSON.stringify(order), {
         status: 200,

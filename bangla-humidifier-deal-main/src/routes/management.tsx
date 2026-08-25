@@ -138,11 +138,14 @@ function ManagementPage() {
         body: JSON.stringify({ status }),
       });
       if (res.ok) {
+        const updatedOrder = await res.json();
         await fetchOrders();
         if (selectedOrder?.id === orderId) {
-          const updatedOrder = await res.json();
           setSelectedOrder(updatedOrder);
         }
+      } else {
+        const body = await res.json().catch(() => null) as { error?: string } | null;
+        alert(body?.error || `Failed to update status (${res.status})`);
       }
     } catch (e) {
       alert("Failed to update status: " + String(e));
@@ -265,12 +268,12 @@ function ManagementPage() {
                 setSearchQuery(e.target.value);
               }}
             />
-            <Select value={filterStatus} onValueChange={(val) => { setFilterStatus(val); }}>
+            <Select value={filterStatus || "all"} onValueChange={(val) => { setFilterStatus(val === "all" ? "" : val); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Order Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="all">All Statuses</SelectItem>
                 <SelectItem value="new">New</SelectItem>
                 <SelectItem value="callPending">Call Pending</SelectItem>
                 <SelectItem value="confirmed">Confirmed</SelectItem>
@@ -281,12 +284,12 @@ function ManagementPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterCallStatus} onValueChange={(val) => { setFilterCallStatus(val); }}>
+            <Select value={filterCallStatus || "all"} onValueChange={(val) => { setFilterCallStatus(val === "all" ? "" : val); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Call Status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">All Call Status</SelectItem>
+                <SelectItem value="all">All Call Status</SelectItem>
                 <SelectItem value="notCalled">Not Called</SelectItem>
                 <SelectItem value="callPending">Call Pending</SelectItem>
                 <SelectItem value="callDone">Call Done</SelectItem>
