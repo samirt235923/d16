@@ -10,7 +10,6 @@ import posterDemo from "@/assets/product_1770548124_69886b9c7c5a8.jpg";
 import posterHowto from "@/assets/product_1770548124_69886b9ccebec.jpg";
 import { Countdown } from "@/components/landing/Countdown";
 import { VideoCard } from "@/components/landing/VideoCard";
-import { OrderForm } from "@/components/landing/OrderForm";
 import { Faq } from "@/components/landing/Faq";
 import {
   PRODUCT_VIDEO_URL,
@@ -275,33 +274,6 @@ function Index() {
           </div>
         </div>
       </Section>
-
-      {/* ORDER */}
-      <section id="order" className="scroll-mt-4 px-4 py-8">
-        <div className="mx-auto max-w-xl">
-          <h2 className="text-center text-xl font-bold md:text-2xl">
-            অর্ডার করতে নিচের তথ্য দিন
-          </h2>
-          <p className="mt-1 text-center text-sm text-muted-foreground">
-            ফর্ম পূরণ → আমরা ফোন করব → পণ্য হাতে পেয়ে টাকা দিন
-          </p>
-          <div className="my-4 grid grid-cols-3 gap-2">
-            {[
-              ["📝", "তথ্য দিন"],
-              ["📞", "কল কনফার্ম"],
-              ["💵", "হাতে পেয়ে পেমেন্ট"],
-            ].map(([icon, label]) => (
-              <div key={label} className="rounded-2xl bg-card p-3 text-center shadow-card">
-                <div className="text-xl">{icon}</div>
-                <p className="mt-1 text-[11px] font-semibold leading-tight">{label}</p>
-              </div>
-            ))}
-          </div>
-          <OrderForm />
-        </div>
-      </section>
-
-
       {/* TRUST */}
       <Section>
         <div className="grid grid-cols-2 gap-3">
