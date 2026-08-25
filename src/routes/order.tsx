@@ -111,35 +111,15 @@ function OrderPage() {
             if (!valid) return;
             const payload = { ...form, qty, color, area };
             try {
-              let res: Response | null = null;
-              try {
-                res = await fetch(`/management-api/orders`, {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(payload),
-                });
-              } catch (err) {
-                console.warn("Primary submit failed:", err);
-              }
-              if (!res || !res.ok) {
-                try {
-                  res = await fetch(`http://localhost:8082/management-api/orders`, {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify(payload),
-                  });
-                } catch (err) {
-                  console.warn("Fallback submit failed:", err);
-                }
-              }
-              if (!res) {
-                alert("Failed to submit order. Check console for details.");
-                return;
-              }
+              const res = await fetch(`/management-api/orders`, {
+                method: "POST",
+                headers: { "content-type": "application/json" },
+                body: JSON.stringify(payload),
+              });
               if (!res.ok) {
-                const txt = await res.text().catch(() => "");
-                console.error("Order API error", res.status, txt);
-                alert("Order submission failed.");
+                const body = await res.json().catch(() => null) as { error?: string } | null;
+                console.error("Order API error", res.status, body);
+                alert(body?.error || `Order submission failed (${res.status}).`);
                 return;
               }
             } catch (e) {

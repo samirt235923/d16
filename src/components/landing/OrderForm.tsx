@@ -8,7 +8,6 @@ export function OrderForm() {
   const [done, setDone] = useState(false);
   const [touched, setTouched] = useState(false);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
-  const [debugAttempts, setDebugAttempts] = useState<Array<{ url: string; status?: number; ok?: boolean; error?: string }>>([]);
 
   const delivery = area === "inside" ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
   const subtotal = PRICE * qty;
@@ -51,49 +50,15 @@ export function OrderForm() {
               // send order to server API
               try {
                   const payload = { ...form, qty, color, area };
-                  const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
-                  const candidatePorts = [window.location.port, "8082", "8081", "8080", "3000"]
-                    .filter(Boolean)
-                    .map(String);
-
-                  const endpoints = [
-                    "/management-api/orders",
-                    ...candidatePorts.map((p) => `http://${host}:${p}/management-api/orders`),
-                  ];
-
-                  let res: Response | null = null;
-                  for (const url of endpoints) {
-                    try {
-                      console.log("Trying order POST to:", url);
-                      res = await fetch(url, {
-                        method: "POST",
-                        headers: { "content-type": "application/json" },
-                        body: JSON.stringify(payload),
-                      });
-                      setDebugAttempts((s) => [...s, { url, status: res?.status, ok: res?.ok }]);
-                      if (res && res.ok) {
-                        console.log("Order successfully posted to", url);
-                        break;
-                      }
-                      // if non-ok, continue to next
-                      console.warn("Non-ok response from", url, res && res.status);
-                      setDebugAttempts((s) => [...s, { url, status: res?.status, ok: res?.ok, error: "non-ok" }]);
-                    } catch (err) {
-                      console.warn("Submit to", url, "failed:", err);
-                      setDebugAttempts((s) => [...s, { url, error: String(err) }]);
-                      res = null;
-                    }
-                  }
-
-                  if (!res) {
-                    alert("Failed to submit order to any known backend endpoints. Open the site on the same dev port as the server or check console for errors.");
-                    return;
-                  }
-
+                  const res = await fetch("/management-api/orders", {
+                    method: "POST",
+                    headers: { "content-type": "application/json" },
+                    body: JSON.stringify(payload),
+                  });
                   if (!res.ok) {
-                    const text = await res.text().catch(() => "");
-                    console.error("Order API error:", res.status, text);
-                    alert("Failed to submit order. Please try again.");
+                    const body = await res.json().catch(() => null) as { error?: string } | null;
+                    console.error("Order API error:", res.status, body);
+                    alert(body?.error || `Order submission failed (${res.status}). Please try again.`);
                     return;
                   }
 
@@ -115,19 +80,6 @@ export function OrderForm() {
       </div>
 
       <div className="space-y-5 p-5">
-        {debugAttempts.length > 0 && (
-          <div className="rounded-2xl border border-border bg-secondary p-3 text-xs">
-            <div className="font-semibold">Debug attempts</div>
-            {debugAttempts.map((d, i) => (
-              <div key={i} className="mt-1">
-                <div>{d.url}</div>
-                <div className="text-muted-foreground">
-                  {d.ok ? `ok (${d.status})` : d.status ? `status ${d.status}` : d.error}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
         <StepField
           step="১"
           label="আপনার নাম"
