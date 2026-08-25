@@ -1,5 +1,3 @@
-import { useState } from "react";
-
 export function VideoCard({
   src,
   poster,
@@ -9,18 +7,15 @@ export function VideoCard({
   poster: string;
   label: string;
 }) {
-  const [playing, setPlaying] = useState(false);
-
-  if (playing && src) {
+  if (src) {
     return (
       <video
         className="aspect-video w-full rounded-3xl bg-foreground/5 shadow-soft"
         src={src}
         poster={poster}
         controls
-        autoPlay
         playsInline
-        preload="none"
+        preload="metadata"
       />
     );
   }
@@ -28,7 +23,6 @@ export function VideoCard({
   return (
     <button
       type="button"
-      onClick={() => src && setPlaying(true)}
       className="group relative block w-full overflow-hidden rounded-3xl shadow-soft active:scale-[0.99] transition-transform"
       aria-label={label}
     >
