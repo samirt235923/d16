@@ -39,11 +39,11 @@ export const Route = createFileRoute("/")({
 
 
 const BENEFITS = [
-  ["💨", "Fine Mist", "সূক্ষ্ম মিস্ট ছড়িয়ে personal space আরও comfortable করতে সাহায্য করে।"],
-  ["🌈", "Colorful LED Light", "রুমে তৈরি করুন সুন্দর ambience।"],
-  ["🔌", "USB Powered", "সহজেই USB দিয়ে ব্যবহার করা যায়।"],
-  ["📦", "Compact Design", "Bedroom, study table বা office desk-এর জন্য উপযোগী।"],
-  ["💧", "180ML Capacity", "দৈনন্দিন personal-space ব্যবহারের জন্য convenient।"],
+  ["🌫️", "Fine Mist", "সূক্ষ্ম মিস্ট ছড়িয়ে আপনার personal space-কে আরও আরামদায়ক রাখতে সাহায্য করে।"],
+  ["🌈", "7-Color LED Light", "৭ রঙের সুন্দর LED Light আপনার রুমে তৈরি করে মনোরম পরিবেশ।"],
+  ["🔌", "USB Powered", "USB-এর মাধ্যমে সহজেই ব্যবহার করা যায়—ল্যাপটপ, পাওয়ার ব্যাংক বা USB অ্যাডাপ্টারের সাথে।"],
+  ["📦", "Compact Design", "ছোট ও স্টাইলিশ ডিজাইন—Bedroom, Study Table বা Office Desk-এর জন্য উপযোগী।"],
+  ["💧", "180ML Capacity", "180ML Water Tank—ব্যক্তিগত ব্যবহারের জন্য সুবিধাজনক ধারণক্ষমতা।"],
 ];
 
 const STEPS = [
