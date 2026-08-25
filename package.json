@@ -3,6 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "workspaces": [
+    "bangla-humidifier-deal-main"
+  ],
   "scripts": {
     "dev": "cd ./bangla-humidifier-deal-main && npm run dev",
     "build": "cd ./bangla-humidifier-deal-main && npm run build",
