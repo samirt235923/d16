@@ -19,9 +19,9 @@ import {
   OLD_PRICE,
 } from "@/lib/media";
 
-const title = "D16 Mini Air Humidifier — মাত্র ৳449, ক্যাশ অন ডেলিভারি";
+const title = "D16 Air Humidifier with Night Light - 180ML (Random Color, White/Black)";
 const description =
-  "D16 Mini Air Humidifier ৳699 নয়, এখন মাত্র ৳449। USB পাওয়ার, ১৮০ml ট্যাংক, LED লাইট। সারা বাংলাদেশে ক্যাশ অন ডেলিভারি।";
+  "D16 Air Humidifier with Night Light - 180ML। Fine Cool Mist, 7-Color LED, 2টি Mist Mode, USB Powered এবং Auto Shut-Off। সারা বাংলাদেশে ক্যাশ অন ডেলিভারি।";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -80,7 +80,7 @@ function Index() {
               <div className="relative w-full">
                 <img
                   src={slides[activeIndex]}
-                  alt="D16 Mini Air Humidifier product view"
+                  alt="D16 Air Humidifier with Night Light - 180ML"
                   width={1024}
                   height={1024}
                   fetchPriority="high"
@@ -125,13 +125,13 @@ function Index() {
           </div>
 
           <div className="mt-4 text-center md:mt-0 md:text-left">
-            <p className="text-sm font-semibold text-primary">D16 Mini Air Humidifier</p>
+            <p className="text-sm font-semibold text-primary">D16 Air Humidifier with Night Light - 180ML</p>
             <h1 className="mt-1 text-[26px] font-bold leading-snug md:text-4xl">
-              রুমের বাতাসকে আরও আরামদায়ক করুন ছোট্ট D16 Humidifier দিয়ে 💨
+              ঘরের পরিবেশকে আরও আরামদায়ক করুন D16 Air Humidifier দিয়ে 💨
             </h1>
             <p className="mt-2 text-sm text-muted-foreground">
-              Bedroom, study table বা office desk-এ রাখুন — সূক্ষ্ম মিস্ট আর নরম LED আলোয়
-              আপনার personal space হবে আরও আরামদায়ক।
+              ১৮০ML ট্যাংক, সূক্ষ্ম ঠান্ডা মিস্ট, 7-Color LED Night Light এবং USB Powered
+              ডিজাইনের এই compact humidifier bedroom, study table বা office desk-এর জন্য উপযোগী।
             </p>
 
             <div className="mt-4 flex items-end justify-center gap-3 md:justify-start">
@@ -198,6 +198,50 @@ function Index() {
               <p className="mt-1 text-sm leading-relaxed text-muted-foreground">{d}</p>
             </div>
           ))}
+        </div>
+      </Section>
+
+      {/* PRODUCT DETAILS */}
+      <Section title="D16 Air Humidifier-এর বিস্তারিত তথ্য">
+        <div className="space-y-4 rounded-3xl bg-card p-5 shadow-soft">
+          <p className="text-sm leading-relaxed text-muted-foreground">
+            D16 Air Humidifier বাতাসে সূক্ষ্ম ঠান্ডা মিস্ট ছড়িয়ে পরিবেশে আর্দ্রতা যোগ করে।
+            এর সুন্দর LED Night Light রুমে তৈরি করে একটি শান্ত ও আরামদায়ক পরিবেশ। USB Powered
+            হওয়ায় ল্যাপটপ, পাওয়ার ব্যাংক বা USB অ্যাডাপ্টারের মাধ্যমে সহজেই ব্যবহার করা যায়।
+          </p>
+          <div>
+            <h3 className="font-bold">প্রধান বৈশিষ্ট্য</h3>
+            <ul className="mt-2 grid gap-2 text-sm text-muted-foreground sm:grid-cols-2">
+              {[
+                "180ML Water Tank",
+                "Fine Cool Mist",
+                "7-Color LED Night Light",
+                "2টি Mist Mode: Continuous ও Intermittent",
+                "Low Noise Operation",
+                "Auto Shut-Off",
+                "USB Powered",
+                "Compact ও Portable Design",
+                "প্রায় 2W Low Power Consumption",
+                "Bedroom, office, study table ও গাড়িতে ব্যবহারযোগ্য",
+              ].map((feature) => <li key={feature}>✓ {feature}</li>)}
+            </ul>
+          </div>
+          <div>
+            <h3 className="font-bold">Mist Mode</h3>
+            <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+              Continuous Mode একটানা মিস্ট দেয় এবং প্রায় ৪ ঘণ্টা চলতে পারে। Intermittent Mode
+              বিরতি দিয়ে মিস্ট ছড়ায় এবং প্রায় ৮ ঘণ্টা পর্যন্ত ব্যবহারের জন্য সুবিধাজনক।
+            </p>
+          </div>
+          <div>
+            <h3 className="font-bold">Product Specifications</h3>
+            <div className="mt-2 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+              {["Product Name|D16 Air Humidifier", "Water Capacity|180ML", "Mist Output|প্রায় 30–45ML/h", "Rated Power|2W", "Noise Level|30dB-এর কম", "Power|USB Powered", "LED Light|7-Color LED", "Material|ABS + PP + Silicone", "Size|প্রায় 78 × 78 × 120mm", "Weight|প্রায় 110g"].map((item) => {
+                const [label, value] = item.split("|");
+                return <div key={label} className="contents"><span className="text-muted-foreground">{label}</span><span className="font-semibold">{value}</span></div>;
+              })}
+            </div>
+          </div>
         </div>
       </Section>
 

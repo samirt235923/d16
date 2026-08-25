@@ -28,22 +28,30 @@ async function ensureDataFile() {
   try {
     const fs = await import("fs");
     const path = await import("path");
-    const isVercel = Boolean(process.env.VERCEL);
-    const DATA_DIR = isVercel ? "/tmp/d16-orders" : path.resolve(process.cwd(), DATA_DIR_REL);
-    const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
-    await fs.promises.mkdir(DATA_DIR, { recursive: true });
-    try {
-      await fs.promises.access(ORDERS_FILE);
-    } catch {
-      const bundledOrdersFile = path.resolve(process.cwd(), DATA_DIR_REL, "orders.json");
+    const candidateDirs = process.env.VERCEL
+      ? ["/tmp/d16-orders", path.resolve(process.cwd(), DATA_DIR_REL)]
+      : [path.resolve(process.cwd(), DATA_DIR_REL)];
+
+    for (const dataDir of candidateDirs) {
       try {
-        const bundledOrders = await fs.promises.readFile(bundledOrdersFile, "utf-8");
-        await fs.promises.writeFile(ORDERS_FILE, bundledOrders, "utf-8");
-      } catch {
-        await fs.promises.writeFile(ORDERS_FILE, "[]", "utf-8");
+        const ordersFile = path.join(dataDir, "orders.json");
+        await fs.promises.mkdir(dataDir, { recursive: true });
+        try {
+          await fs.promises.access(ordersFile);
+        } catch {
+          const bundledOrdersFile = path.resolve(process.cwd(), DATA_DIR_REL, "orders.json");
+          let initialOrders = "[]";
+          try {
+            initialOrders = await fs.promises.readFile(bundledOrdersFile, "utf-8");
+          } catch {}
+          await fs.promises.writeFile(ordersFile, initialOrders, "utf-8");
+        }
+        return { fs, ORDERS_FILE: ordersFile } as any;
+      } catch (error) {
+        console.error(`Unable to use order storage at ${dataDir}:`, error);
       }
     }
-    return { fs, ORDERS_FILE } as any;
+    return null;
   } catch (e) {
     console.error("Unable to ensure data file:", e);
     return null;
@@ -353,7 +361,12 @@ async function handleApi(request: Request): Promise<Response | null> {
       order.statusHistory.push({ status, timestamp: now, changedBy: "admin" });
       
       orders[idx] = order;
-      await writeOrders(orders);
+      if (!await writeOrders(orders)) {
+        return new Response(JSON.stringify({ error: "Unable to save order status" }), {
+          status: 500,
+          headers: { "content-type": "application/json", "access-control-allow-origin": "*" },
+        });
+      }
       
       return new Response(JSON.stringify(order), {
         status: 200,

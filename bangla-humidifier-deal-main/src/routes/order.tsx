@@ -3,9 +3,9 @@ import { useState } from "react";
 import heroImg from "@/assets/product_1770548124_69886b9c71c18.jpg";
 import { PRICE, OLD_PRICE, DELIVERY_INSIDE, DELIVERY_OUTSIDE } from "@/lib/media";
 
-const title = "অর্ডার করুন — D16 Mini Air Humidifier ৳449 (ক্যাশ অন ডেলিভারি)";
+const title = "অর্ডার করুন — D16 Air Humidifier with Night Light - 180ML";
 const description =
-  "নাম, মোবাইল নাম্বার আর ঠিকানা দিন — আমরা ফোন করে অর্ডার কনফার্ম করব। পণ্য হাতে পেয়ে টাকা পরিশোধ করবেন।";
+  "D16 Air Humidifier with Night Light - 180ML অর্ডার করুন। USB Powered, 7-Color LED এবং ক্যাশ অন ডেলিভারি সুবিধা।";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
