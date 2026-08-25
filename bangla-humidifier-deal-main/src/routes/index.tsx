@@ -122,7 +122,7 @@ function Index() {
             </div>
 
             <span className="absolute left-2 top-2 rounded-full bg-warning px-3 py-1 text-xs font-bold text-primary-foreground shadow-soft">
-              ৳250 সাশ্রয়
+              ৳300 সাশ্রয়
             </span>
           </div>
 
@@ -180,7 +180,7 @@ function Index() {
             <span className="text-3xl">→</span>
             <span className="text-4xl font-bold text-primary">৳{PRICE}</span>
           </div>
-          <p className="mt-1 text-sm font-semibold text-success">সাশ্রয় ৳250</p>
+          <p className="mt-1 text-sm font-semibold text-success">সাশ্রয় ৳300</p>
           <div className="mt-4">
             <Countdown />
           </div>
@@ -307,11 +307,11 @@ function Index() {
         <div className="grid grid-cols-2 gap-3">
           <div className="rounded-2xl bg-card p-4 text-center shadow-card">
             <p className="text-sm text-muted-foreground">ঢাকার ভিতরে</p>
-            <p className="text-2xl font-bold text-primary">৳50</p>
+            <p className="text-2xl font-bold text-primary">৳70</p>
           </div>
           <div className="rounded-2xl bg-card p-4 text-center shadow-card">
             <p className="text-sm text-muted-foreground">ঢাকার বাইরে</p>
-            <p className="text-2xl font-bold text-primary">৳100</p>
+            <p className="text-2xl font-bold text-primary">৳130</p>
           </div>
         </div>
         <p className="mt-3 rounded-2xl bg-brand-soft px-4 py-3 text-center text-sm font-semibold text-accent-foreground">
@@ -321,12 +321,12 @@ function Index() {
         <div className="mt-4 rounded-3xl bg-card p-5 shadow-card">
           <SummaryRow label="নিয়মিত দাম" value={`৳${OLD_PRICE}`} strike />
           <SummaryRow label="অফার দাম" value={`৳${PRICE}`} highlight />
-          <SummaryRow label="আপনার সাশ্রয়" value="৳250" />
-          <SummaryRow label="ডেলিভারি" value="৳50 / ৳100" />
+          <SummaryRow label="আপনার সাশ্রয়" value="৳300" />
+          <SummaryRow label="ডেলিভারি" value="৳70 / ৳130" />
           <div className="my-2 border-t border-border" />
           <div className="flex items-center justify-between font-bold">
             <span>সর্বমোট</span>
-            <span className="text-primary">৳499 / ৳549</span>
+            <span className="text-primary">৳469 / ৳529</span>
           </div>
         </div>
       </Section>
@@ -359,7 +359,7 @@ function Index() {
       <section className="bg-gradient-cta px-4 py-10 text-center">
         <div className="mx-auto max-w-xl">
           <h2 className="text-2xl font-bold text-primary-foreground">
-            ৳699 নয়, এখন মাত্র ৳449! 🔥
+            ৳699 নয়, এখন মাত্র ৳399! 🔥
           </h2>
           <p className="mt-2 text-sm text-primary-foreground/80">
             সীমিত সময়ের অফার শেষ হওয়ার আগে অর্ডার করুন।
