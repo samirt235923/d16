@@ -1,7 +1,7 @@
 'use client';
 
 import { createFileRoute } from "@tanstack/react-router";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -37,8 +37,8 @@ function ManagementPage() {
   const [filterStatus, setFilterStatus] = useState<string>("");
   const [filterCallStatus, setFilterCallStatus] = useState<string>("");
   const [sortBy, setSortBy] = useState("newest");
-  const [page, setPage] = useState(1);
-  const [pageSize] = useState(10);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const ordersRequestId = useRef(0);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
@@ -63,6 +63,7 @@ function ManagementPage() {
 
   const fetchOrders = useCallback(async () => {
     if (!authOk) return;
+    const requestId = ++ordersRequestId.current;
     setLoading(true);
     try {
       const basic = "Basic " + btoa(`${username}:${password}`);
@@ -71,8 +72,8 @@ function ManagementPage() {
       if (filterStatus) params.append("status", filterStatus);
       if (filterCallStatus) params.append("callStatus", filterCallStatus);
       params.append("sort", sortBy);
-      params.append("page", String(page));
-      params.append("limit", String(pageSize));
+      params.append("page", "1");
+      params.append("limit", "10000");
 
       const res = await fetch(`/management-api/orders?${params}`, {
         headers: { Authorization: basic },
@@ -80,7 +81,10 @@ function ManagementPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setOrders(data.orders || []);
+        if (requestId === ordersRequestId.current) {
+          setOrders(data.orders || []);
+          setTotalOrders(Number(data.total) || 0);
+        }
       } else if (res.status === 401) {
         setAuthOk(false);
       }
@@ -89,7 +93,7 @@ function ManagementPage() {
     } finally {
       setLoading(false);
     }
-  }, [authOk, username, password, searchQuery, filterStatus, filterCallStatus, sortBy, page, pageSize]);
+  }, [authOk, username, password, searchQuery, filterStatus, filterCallStatus, sortBy]);
 
   const fetchStats = useCallback(async () => {
     if (!authOk) return;
@@ -117,6 +121,10 @@ function ManagementPage() {
       return () => clearInterval(interval);
     }
   }, [authOk, fetchOrders, fetchStats]);
+
+  const refreshDashboard = async () => {
+    await Promise.all([fetchOrders(), fetchStats()]);
+  };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
     try {
@@ -255,10 +263,9 @@ function ManagementPage() {
               value={searchQuery}
               onChange={(e) => {
                 setSearchQuery(e.target.value);
-                setPage(1);
               }}
             />
-            <Select value={filterStatus} onValueChange={(val) => { setFilterStatus(val); setPage(1); }}>
+            <Select value={filterStatus} onValueChange={(val) => { setFilterStatus(val); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Order Status" />
               </SelectTrigger>
@@ -274,7 +281,7 @@ function ManagementPage() {
                 <SelectItem value="cancelled">Cancelled</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={filterCallStatus} onValueChange={(val) => { setFilterCallStatus(val); setPage(1); }}>
+            <Select value={filterCallStatus} onValueChange={(val) => { setFilterCallStatus(val); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Call Status" />
               </SelectTrigger>
@@ -287,7 +294,7 @@ function ManagementPage() {
                 <SelectItem value="notInterested">Not Interested</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={sortBy} onValueChange={(val) => { setSortBy(val); setPage(1); }}>
+            <Select value={sortBy} onValueChange={(val) => { setSortBy(val); }}>
               <SelectTrigger>
                 <SelectValue placeholder="Sort by" />
               </SelectTrigger>
@@ -301,6 +308,12 @@ function ManagementPage() {
           </div>
 
           {/* Orders Table */}
+          <div className="mt-6 flex items-center justify-between gap-3">
+            <h2 className="text-lg font-semibold">All Orders</h2>
+            <Button variant="outline" size="sm" onClick={refreshDashboard} disabled={loading}>
+              {loading ? "Refreshing..." : "↻ Refresh"}
+            </Button>
+          </div>
           <OrdersTable
             orders={orders}
             loading={loading}
@@ -310,28 +323,9 @@ function ManagementPage() {
             }}
           />
 
-          {/* Pagination */}
           <div className="mt-4 flex items-center justify-between">
             <div className="text-sm text-muted-foreground">
-              Showing {orders.length} of {stats?.total || 0} orders
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(Math.max(1, page - 1))}
-                disabled={page === 1}
-              >
-                Previous
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPage(page + 1)}
-                disabled={orders.length < pageSize}
-              >
-                Next
-              </Button>
+              Showing {orders.length} of {totalOrders} orders
             </div>
           </div>
         </main>
