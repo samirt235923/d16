@@ -28,13 +28,20 @@ async function ensureDataFile() {
   try {
     const fs = await import("fs");
     const path = await import("path");
-    const DATA_DIR = path.resolve(process.cwd(), DATA_DIR_REL);
+    const isVercel = Boolean(process.env.VERCEL);
+    const DATA_DIR = isVercel ? "/tmp/d16-orders" : path.resolve(process.cwd(), DATA_DIR_REL);
     const ORDERS_FILE = path.join(DATA_DIR, "orders.json");
     await fs.promises.mkdir(DATA_DIR, { recursive: true });
     try {
       await fs.promises.access(ORDERS_FILE);
     } catch {
-      await fs.promises.writeFile(ORDERS_FILE, "[]", "utf-8");
+      const bundledOrdersFile = path.resolve(process.cwd(), DATA_DIR_REL, "orders.json");
+      try {
+        const bundledOrders = await fs.promises.readFile(bundledOrdersFile, "utf-8");
+        await fs.promises.writeFile(ORDERS_FILE, bundledOrders, "utf-8");
+      } catch {
+        await fs.promises.writeFile(ORDERS_FILE, "[]", "utf-8");
+      }
     }
     return { fs, ORDERS_FILE } as any;
   } catch (e) {
