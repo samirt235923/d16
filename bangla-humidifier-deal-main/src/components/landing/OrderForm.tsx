@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PRICE, DELIVERY_INSIDE, DELIVERY_OUTSIDE } from "@/lib/media";
+import { getAnonymousSupabaseClient } from "@/lib/supabase";
 
 export function OrderForm() {
   const [area, setArea] = useState<"inside" | "outside">("inside");
@@ -7,6 +8,8 @@ export function OrderForm() {
   const [qty, setQty] = useState(1);
   const [done, setDone] = useState(false);
   const [touched, setTouched] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
 
   const delivery = area === "inside" ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
@@ -31,8 +34,9 @@ export function OrderForm() {
         </div>
         <h3 className="mt-4 text-xl font-bold">অর্ডার রিকোয়েস্ট পেয়েছি!</h3>
         <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
-          আমাদের প্রতিনিধি শীঘ্রই <span className="font-semibold text-foreground">{form.phone}</span>{" "}
-          নাম্বারে ফোন করে অর্ডার কনফার্ম করবেন। পণ্য হাতে পেয়ে টাকা পরিশোধ করবেন।
+          আমাদের প্রতিনিধি শীঘ্রই{" "}
+          <span className="font-semibold text-foreground">{form.phone}</span> নাম্বারে ফোন করে
+          অর্ডার কনফার্ম করবেন। পণ্য হাতে পেয়ে টাকা পরিশোধ করবেন।
         </p>
         <div className="mt-4 rounded-2xl bg-secondary px-4 py-3 text-sm font-bold">
           সর্বমোট পরিশোধ করবেন: <span className="text-primary">৳{total}</span>
@@ -46,31 +50,40 @@ export function OrderForm() {
       onSubmit={async (e) => {
         e.preventDefault();
         setTouched(true);
-            if (valid) {
-              // send order to server API
-              try {
-                  const payload = { ...form, qty, color, area };
-                  const res = await fetch("/management-api/orders", {
-                    method: "POST",
-                    headers: { "content-type": "application/json" },
-                    body: JSON.stringify(payload),
-                  });
-                  if (!res.ok) {
-                    const body = await res.json().catch(() => null) as { error?: string } | null;
-                    console.error("Order API error:", res.status, body);
-                    alert(body?.error || `Order submission failed (${res.status}). Please try again.`);
-                    return;
-                  }
-
-                  const created = await res.json().catch(() => null);
-                  console.log("Order created:", created);
-                  setDone(true);
-                } catch (e) {
-                  console.error(e);
-                  alert("Network error submitting order");
-                  return;
-                }
-            }
+        setSubmitError(null);
+        if (!valid || isSubmitting) return;
+        setIsSubmitting(true);
+        try {
+          const client = getAnonymousSupabaseClient();
+          const { error } = await client.from("orders").insert({
+            customer_name: form.name.trim(),
+            phone: form.phone.trim(),
+            address: form.address.trim(),
+            delivery_area: area,
+            color,
+            quantity: qty,
+            product_name: "D16 Air Humidifier",
+            product_price: PRICE,
+            delivery_charge: delivery,
+            total_price: total,
+          });
+          if (error) {
+            console.error("Supabase order submission error:", {
+              message: error.message,
+              code: error.code,
+              details: error.details,
+              hint: error.hint,
+            });
+            setSubmitError("দুঃখিত, অর্ডারটি সংরক্ষণ করা যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।");
+            return;
+          }
+          setDone(true);
+        } catch (error) {
+          console.error("Supabase order submission exception:", error);
+          setSubmitError("দুঃখিত, অর্ডারটি সংরক্ষণ করা যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।");
+        } finally {
+          setIsSubmitting(false);
+        }
       }}
       className="overflow-hidden rounded-3xl bg-card shadow-soft"
     >
@@ -80,11 +93,7 @@ export function OrderForm() {
       </div>
 
       <div className="space-y-5 p-5">
-        <StepField
-          step="১"
-          label="আপনার নাম"
-          error={touched && !nameOk ? "নাম লিখুন" : undefined}
-        >
+        <StepField step="১" label="আপনার নাম" error={touched && !nameOk ? "নাম লিখুন" : undefined}>
           <input
             className={field(nameOk)}
             placeholder="আপনার নাম লিখুন"
@@ -126,10 +135,12 @@ export function OrderForm() {
 
         <StepField step="৪" label="কালার বাছাই করুন">
           <div className="grid grid-cols-2 gap-3">
-            {([
-              ["black", "কালো", "#1c1c1e"],
-              ["white", "সাদা", "#f3f4f6"],
-            ] as const).map(([key, label, swatch]) => {
+            {(
+              [
+                ["black", "কালো", "#1c1c1e"],
+                ["white", "সাদা", "#f3f4f6"],
+              ] as const
+            ).map(([key, label, swatch]) => {
               const active = color === key;
               return (
                 <button
@@ -160,10 +171,12 @@ export function OrderForm() {
 
         <StepField step="৫" label="ডেলিভারি এলাকা">
           <div className="grid grid-cols-2 gap-3">
-            {([
-              ["inside", "ঢাকার ভিতরে", DELIVERY_INSIDE],
-              ["outside", "ঢাকার বাইরে", DELIVERY_OUTSIDE],
-            ] as const).map(([key, label, charge]) => {
+            {(
+              [
+                ["inside", "ঢাকার ভিতরে", DELIVERY_INSIDE],
+                ["outside", "ঢাকার বাইরে", DELIVERY_OUTSIDE],
+              ] as const
+            ).map(([key, label, charge]) => {
               const active = area === key;
               return (
                 <button
@@ -212,7 +225,10 @@ export function OrderForm() {
         </StepField>
 
         <div className="rounded-2xl bg-secondary p-4 text-sm">
-          <Row label={`D16 Humidifier (${color === "black" ? "কালো" : "সাদা"}) × ${qty}`} value={`৳${subtotal}`} />
+          <Row
+            label={`D16 Humidifier (${color === "black" ? "কালো" : "সাদা"}) × ${qty}`}
+            value={`৳${subtotal}`}
+          />
           <Row label="ডেলিভারি চার্জ" value={`৳${delivery}`} />
           <div className="my-2 border-t border-border" />
           <div className="flex items-center justify-between text-base font-bold">
@@ -221,8 +237,20 @@ export function OrderForm() {
           </div>
         </div>
 
-        <button type="submit" className="btn-cta">
-          ক্যাশ অন ডেলিভারিতে অর্ডার করুন
+        {submitError && (
+          <p
+            role="alert"
+            className="rounded-xl bg-destructive/10 px-4 py-3 text-center text-sm font-medium text-destructive"
+          >
+            {submitError}
+          </p>
+        )}
+        <button
+          type="submit"
+          className="btn-cta disabled:cursor-not-allowed disabled:opacity-70"
+          disabled={isSubmitting}
+        >
+          {isSubmitting ? "অর্ডার পাঠানো হচ্ছে..." : <>ক্যাশ অন ডেলিভারিতে অর্ডার করুন</>}
         </button>
         <p className="text-center text-xs leading-relaxed text-muted-foreground">
           🔒 আপনার তথ্য সম্পূর্ণ গোপন থাকবে · অর্ডার কনফার্ম করতে আমাদের প্রতিনিধি ফোন করবেন

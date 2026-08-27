@@ -1,23 +1,72 @@
-'use client';
+"use client";
 
 import { createFileRoute } from "@tanstack/react-router";
-import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import {
-  ORDER_STATUS_LABELS,
-  CALL_STATUS_LABELS,
-  PAYMENT_STATUS_LABELS,
-  type Order,
-  type OrderStatus,
-  type CallStatus,
-} from "@/lib/order-schema";
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { getSupabaseClient } from "@/lib/supabase";
+
+const ORDER_STATUSES = [
+  "pending",
+  "confirmed",
+  "processing",
+  "shipped",
+  "delivered",
+  "cancelled",
+] as const;
+const PAGE_SIZES = [20, 50, 100] as const;
+const ORDER_COLUMNS =
+  "id, customer_name, phone, address, delivery_area, color, quantity, product_name, product_price, delivery_charge, total_price, status, created_at";
+
+type OrderStatus = (typeof ORDER_STATUSES)[number];
+type AuthState = "checking" | "unauthenticated" | "forbidden" | "authenticated";
+type DateFilter = "all" | "today" | "yesterday" | "last7" | "last30" | "custom";
+type DateRange = { from?: string; to?: string };
+
+type AdminOrder = {
+  id: string;
+  customer_name: string;
+  phone: string;
+  address: string;
+  delivery_area: string;
+  color: string;
+  quantity: number;
+  product_name: string;
+  product_price: number;
+  delivery_charge: number;
+  total_price: number;
+  status: OrderStatus;
+  created_at: string;
+};
+
+type DashboardStats = Record<"total" | "today" | OrderStatus, number>;
+
+const STATUS_LABELS: Record<OrderStatus, string> = {
+  pending: "Pending",
+  confirmed: "Confirmed",
+  processing: "Processing",
+  shipped: "Shipped",
+  delivered: "Delivered",
+  cancelled: "Cancelled",
+};
 
 export const Route = createFileRoute("/management")({
   head: () => ({ meta: [{ title: "Order Management Dashboard" }] }),
@@ -25,343 +74,451 @@ export const Route = createFileRoute("/management")({
 });
 
 function ManagementPage() {
-  const [authOk, setAuthOk] = useState(false);
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [stats, setStats] = useState<any>(null);
-  const [loading, setLoading] = useState(false);
-  const [username, setUsername] = useState("Admin");
+  const [authState, setAuthState] = useState<AuthState>("checking");
+  const [adminEmail, setAdminEmail] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  
-  // UI State
+  const [loginError, setLoginError] = useState<string | null>(null);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [stats, setStats] = useState<DashboardStats | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [filterStatus, setFilterStatus] = useState<string>("");
-  const [filterCallStatus, setFilterCallStatus] = useState<string>("");
-  const [sortBy, setSortBy] = useState("newest");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [filterStatus, setFilterStatus] = useState<OrderStatus | "all">("all");
+  const [dateFilter, setDateFilter] = useState<DateFilter>("all");
+  const [customStartDate, setCustomStartDate] = useState("");
+  const [customEndDate, setCustomEndDate] = useState("");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20);
   const [totalOrders, setTotalOrders] = useState(0);
-  const ordersRequestId = useRef(0);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
   const [showOrderDetail, setShowOrderDetail] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState<string | null>(null);
+  const [updatingOrderId, setUpdatingOrderId] = useState<string | null>(null);
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+  const requestId = useRef(0);
+  const refreshRef = useRef<() => Promise<void>>(async () => {});
 
-  // Fetch functions
-  const login = useCallback(async () => {
+  const syncAuth = useCallback(async () => {
     try {
-      const res = await fetch("/management-api/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ username, password }),
-      });
-      if (res.ok) {
-        setAuthOk(true);
-      } else {
-        alert("Invalid credentials");
+      const { data, error } = await getSupabaseClient().auth.getUser();
+      const user = data.user;
+      if (error || !user) {
+        setAdminEmail("");
+        setAuthState("unauthenticated");
+        return;
       }
-    } catch (e) {
-      alert(String(e));
-    }
-  }, [username, password]);
-
-  const fetchOrders = useCallback(async () => {
-    if (!authOk) return;
-    const requestId = ++ordersRequestId.current;
-    setLoading(true);
-    try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const params = new URLSearchParams();
-      if (searchQuery) params.append("search", searchQuery);
-      if (filterStatus) params.append("status", filterStatus);
-      if (filterCallStatus) params.append("callStatus", filterCallStatus);
-      params.append("sort", sortBy);
-      params.append("page", "1");
-      params.append("limit", "10000");
-
-      const res = await fetch(`/management-api/orders?${params}`, {
-        headers: { Authorization: basic },
-        cache: "no-store",
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (requestId === ordersRequestId.current) {
-          setOrders(data.orders || []);
-          setTotalOrders(Number(data.total) || 0);
-        }
-      } else if (res.status === 401) {
-        setAuthOk(false);
+      if (user.app_metadata?.["role"] !== "admin") {
+        setAdminEmail(user.email ?? "");
+        setAuthState("forbidden");
+        return;
       }
-    } catch (e) {
-      console.error("Failed to fetch orders:", e);
-    } finally {
-      setLoading(false);
+      setAdminEmail(user.email ?? "");
+      setAuthState("authenticated");
+    } catch {
+      setAdminEmail("");
+      setAuthState("unauthenticated");
     }
-  }, [authOk, username, password, searchQuery, filterStatus, filterCallStatus, sortBy]);
-
-  const fetchStats = useCallback(async () => {
-    if (!authOk) return;
-    try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch("/management-api/stats", {
-        headers: { Authorization: basic },
-        cache: "no-store",
-      });
-      if (res.ok) {
-        setStats(await res.json());
-      }
-    } catch (e) {
-      console.error("Failed to fetch stats:", e);
-    }
-  }, [authOk, username, password]);
+  }, []);
 
   useEffect(() => {
-    if (authOk) {
-      fetchOrders();
-      fetchStats();
-      const interval = setInterval(() => {
-        fetchStats();
-      }, 30000); // Refresh stats every 30s
-      return () => clearInterval(interval);
-    }
-  }, [authOk, fetchOrders, fetchStats]);
+    void syncAuth();
+    const {
+      data: { subscription },
+    } = getSupabaseClient().auth.onAuthStateChange(() => void syncAuth());
+    return () => subscription.unsubscribe();
+  }, [syncAuth]);
 
-  const refreshDashboard = async () => {
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, filterStatus, dateFilter, customStartDate, customEndDate, pageSize]);
+
+  const fetchOrders = useCallback(async () => {
+    if (authState !== "authenticated") return;
+    const currentRequest = ++requestId.current;
+    setLoading(true);
+    setOrdersError(null);
+
+    try {
+      const client = getSupabaseClient();
+      let query = client
+        .from("orders")
+        .select(ORDER_COLUMNS, { count: "exact" })
+        .order("created_at", { ascending: false });
+      if (filterStatus !== "all") query = query.eq("status", filterStatus);
+
+      const dateRange = getDateRange(dateFilter, customStartDate, customEndDate);
+      if (dateRange.from) query = query.gte("created_at", dateRange.from);
+      if (dateRange.to) query = query.lt("created_at", dateRange.to);
+
+      if (debouncedSearch) {
+        const safeSearch = debouncedSearch.replace(/[(),%*]/g, " ").trim();
+        if (safeSearch) {
+          const filters = [`customer_name.ilike.%${safeSearch}%`, `phone.ilike.%${safeSearch}%`];
+          if (isUuid(safeSearch)) filters.push(`id.eq.${safeSearch}`);
+          query = query.or(filters.join(","));
+        }
+      }
+
+      const from = (page - 1) * pageSize;
+      const { data, error, count } = await query.range(from, from + pageSize - 1);
+      if (error) throw error;
+      if (currentRequest === requestId.current) {
+        setOrders((data ?? []) as AdminOrder[]);
+        setTotalOrders(count ?? 0);
+      }
+    } catch (error: any) {
+      console.error("Admin order fetch failed:", error);
+      if (currentRequest === requestId.current) {
+        setOrders([]);
+        setTotalOrders(0);
+        const msg = error?.message || "Unknown error";
+        const code = error?.code || "";
+        setOrdersError(`Orders could not be loaded. [${code}] ${msg}`);
+      }
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
+  }, [
+    authState,
+    customEndDate,
+    customStartDate,
+    dateFilter,
+    debouncedSearch,
+    filterStatus,
+    page,
+    pageSize,
+  ]);
+
+  const fetchStats = useCallback(async () => {
+    if (authState !== "authenticated") return;
+    try {
+      const client = getSupabaseClient();
+      const todayRange = getDateRange("today", "", "");
+      const countOrders = async (status?: OrderStatus, todayOnly = false) => {
+        let query = client.from("orders").select("id", { count: "exact", head: true });
+        if (status) query = query.eq("status", status);
+        if (todayOnly && todayRange.from && todayRange.to)
+          query = query.gte("created_at", todayRange.from).lt("created_at", todayRange.to);
+        const { count, error } = await query;
+        if (error) throw error;
+        return count ?? 0;
+      };
+
+      const [total, today, pending, confirmed, processing, shipped, delivered, cancelled] =
+        await Promise.all([
+          countOrders(),
+          countOrders(undefined, true),
+          countOrders("pending"),
+          countOrders("confirmed"),
+          countOrders("processing"),
+          countOrders("shipped"),
+          countOrders("delivered"),
+          countOrders("cancelled"),
+        ]);
+      setStats({ total, today, pending, confirmed, processing, shipped, delivered, cancelled });
+    } catch (error) {
+      console.error("Admin statistics fetch failed:", error);
+      setOrdersError("Dashboard statistics could not be loaded. Please refresh and try again.");
+    }
+  }, [authState]);
+
+  const refreshDashboard = useCallback(async () => {
     await Promise.all([fetchOrders(), fetchStats()]);
+  }, [fetchOrders, fetchStats]);
+
+  useEffect(() => {
+    refreshRef.current = refreshDashboard;
+  }, [refreshDashboard]);
+
+  useEffect(() => {
+    if (authState === "authenticated") void fetchOrders();
+  }, [authState, fetchOrders]);
+
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    void fetchStats();
+    const interval = window.setInterval(() => void fetchStats(), 30_000);
+    return () => window.clearInterval(interval);
+  }, [authState, fetchStats]);
+
+  useEffect(() => {
+    if (authState !== "authenticated") return;
+    const channel = getSupabaseClient()
+      .channel("admin-orders-live")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "orders" },
+        () => void refreshRef.current(),
+      )
+      .subscribe();
+    return () => {
+      void getSupabaseClient().removeChannel(channel);
+    };
+  }, [authState]);
+
+  const login = async () => {
+    setLoginError(null);
+    setLoginLoading(true);
+    try {
+      const { error } = await getSupabaseClient().auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
+      if (error) {
+        setLoginError("Unable to sign in. Check your email and password.");
+        return;
+      }
+      setPassword("");
+      await syncAuth();
+    } catch (error) {
+      console.error("Admin sign-in failed:", error);
+      setLoginError("Unable to sign in right now. Please try again.");
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const logout = async () => {
+    await getSupabaseClient().auth.signOut();
+    setOrders([]);
+    setStats(null);
+    setSelectedOrder(null);
+    setAuthState("unauthenticated");
   };
 
   const updateOrderStatus = async (orderId: string, status: OrderStatus) => {
+    setUpdatingOrderId(orderId);
+    setOrdersError(null);
     try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch(`/management-api/orders/${orderId}/status`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Authorization: basic,
-        },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        const updatedOrder = await res.json();
-        await fetchOrders();
-        if (selectedOrder?.id === orderId) {
-          setSelectedOrder(updatedOrder);
-        }
-      } else {
-        const body = await res.json().catch(() => null) as { error?: string } | null;
-        alert(body?.error || `Failed to update status (${res.status})`);
-      }
-    } catch (e) {
-      alert("Failed to update status: " + String(e));
-    }
-  };
-
-  const updateCallStatus = async (orderId: string, result: CallStatus, note?: string, callbackDate?: string, callbackTime?: string, callbackNote?: string) => {
-    try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch(`/management-api/orders/${orderId}/call`, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          Authorization: basic,
-        },
-        body: JSON.stringify({ result, note, callbackDate, callbackTime, callbackNote }),
-      });
-      if (res.ok) {
-        await fetchOrders();
-        if (selectedOrder?.id === orderId) {
-          const updatedOrder = await res.json();
-          setSelectedOrder(updatedOrder);
-        }
-      }
-    } catch (e) {
-      alert("Failed to log call: " + String(e));
-    }
-  };
-
-  const updatePayment = async (orderId: string, paidAmount: number) => {
-    try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch(`/management-api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          Authorization: basic,
-        },
-        body: JSON.stringify({ paidAmount }),
-      });
-      if (res.ok) {
-        await fetchOrders();
-        if (selectedOrder?.id === orderId) {
-          const updatedOrder = await res.json();
-          setSelectedOrder(updatedOrder);
-        }
-      }
-    } catch (e) {
-      alert("Failed to update payment: " + String(e));
-    }
-  };
-
-  const addNote = async (orderId: string, notes: string) => {
-    try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch(`/management-api/orders/${orderId}`, {
-        method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-          Authorization: basic,
-        },
-        body: JSON.stringify({ notes }),
-      });
-      if (res.ok) {
-        await fetchOrders();
-        if (selectedOrder?.id === orderId) {
-          const updatedOrder = await res.json();
-          setSelectedOrder(updatedOrder);
-        }
-      }
-    } catch (e) {
-      alert("Failed to add note: " + String(e));
+      const { data, error } = await getSupabaseClient()
+        .from("orders")
+        .update({ status })
+        .eq("id", orderId)
+        .select(ORDER_COLUMNS)
+        .single();
+      if (error) throw error;
+      const updatedOrder = data as AdminOrder;
+      setOrders((current) => current.map((order) => (order.id === orderId ? updatedOrder : order)));
+      setSelectedOrder((current) => (current?.id === orderId ? updatedOrder : current));
+      await fetchStats();
+    } catch (error) {
+      console.error("Admin status update failed:", error);
+      setOrdersError("The order status could not be updated. Please try again.");
+    } finally {
+      setUpdatingOrderId(null);
     }
   };
 
   const deleteOrder = async (orderId: string) => {
+    setDeletingOrderId(orderId);
+    setOrdersError(null);
     try {
-      const basic = "Basic " + btoa(`${username}:${password}`);
-      const res = await fetch(`/management-api/orders/${orderId}`, {
-        method: "DELETE",
-        headers: { Authorization: basic },
-      });
-      if (res.ok) {
-        setShowDeleteConfirm(null);
-        await fetchOrders();
-        if (selectedOrder?.id === orderId) {
-          setShowOrderDetail(false);
-          setSelectedOrder(null);
-        }
-      }
-    } catch (e) {
-      alert("Failed to delete order: " + String(e));
+      const { error } = await getSupabaseClient().from("orders").delete().eq("id", orderId);
+      if (error) throw error;
+      setShowDeleteConfirm(null);
+      setShowOrderDetail(false);
+      setSelectedOrder(null);
+      await refreshDashboard();
+    } catch (error) {
+      console.error("Admin order deletion failed:", error);
+      setOrdersError("The order could not be deleted. Please try again.");
+    } finally {
+      setDeletingOrderId(null);
     }
   };
 
-  if (!authOk) {
-    return <LoginPage onLogin={login} username={username} setUsername={setUsername} password={password} setPassword={setPassword} />;
-  }
+  if (authState === "checking")
+    return (
+      <div className="grid min-h-screen place-items-center text-sm text-muted-foreground">
+        Checking your admin session...
+      </div>
+    );
+  if (authState === "unauthenticated")
+    return (
+      <LoginPage
+        email={email}
+        error={loginError}
+        loading={loginLoading}
+        password={password}
+        setEmail={setEmail}
+        setPassword={setPassword}
+        onLogin={login}
+      />
+    );
+  if (authState === "forbidden") return <AccessDenied email={adminEmail} onLogout={logout} />;
+
+  const totalPages = Math.max(1, Math.ceil(totalOrders / pageSize));
 
   return (
     <div className="flex min-h-screen bg-background">
-      {/* Sidebar */}
       <Sidebar />
-
-      {/* Main Content */}
-      <div className="flex-1">
-        {/* Header */}
-        <Header username={username} onLogout={() => { setAuthOk(false); setOrders([]); }} />
-
-        <main className="p-6">
-          {/* Dashboard Stats */}
+      <div className="flex-1 overflow-hidden">
+        <Header email={adminEmail} onLogout={logout} />
+        <main className="p-4 md:p-6">
           <DashboardStats stats={stats} />
+          {ordersError && (
+            <p
+              role="alert"
+              className="mt-6 rounded-lg bg-destructive/10 px-4 py-3 text-sm font-medium text-destructive"
+            >
+              {ordersError}
+            </p>
+          )}
 
-          {/* Filters and Search */}
-          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
             <Input
-              placeholder="Search by name, phone, ID..."
+              placeholder="Search by name, phone, or full order ID..."
               value={searchQuery}
-              onChange={(e) => {
-                setSearchQuery(e.target.value);
-              }}
+              onChange={(event) => setSearchQuery(event.target.value)}
             />
-            <Select value={filterStatus || "all"} onValueChange={(val) => { setFilterStatus(val === "all" ? "" : val); }}>
+            <Select
+              value={filterStatus}
+              onValueChange={(value) => setFilterStatus(value as OrderStatus | "all")}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Order Status" />
+                <SelectValue placeholder="Order status" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Statuses</SelectItem>
-                <SelectItem value="new">New</SelectItem>
-                <SelectItem value="callPending">Call Pending</SelectItem>
-                <SelectItem value="confirmed">Confirmed</SelectItem>
-                <SelectItem value="processing">Processing</SelectItem>
-                <SelectItem value="deliveryPending">Delivery Pending</SelectItem>
-                <SelectItem value="outForDelivery">Out for Delivery</SelectItem>
-                <SelectItem value="done">Done</SelectItem>
-                <SelectItem value="cancelled">Cancelled</SelectItem>
+                <SelectItem value="all">All statuses</SelectItem>
+                {ORDER_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {STATUS_LABELS[status]}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
-            <Select value={filterCallStatus || "all"} onValueChange={(val) => { setFilterCallStatus(val === "all" ? "" : val); }}>
+            <Select
+              value={dateFilter}
+              onValueChange={(value) => setDateFilter(value as DateFilter)}
+            >
               <SelectTrigger>
-                <SelectValue placeholder="Call Status" />
+                <SelectValue placeholder="Order date" />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">All Call Status</SelectItem>
-                <SelectItem value="notCalled">Not Called</SelectItem>
-                <SelectItem value="callPending">Call Pending</SelectItem>
-                <SelectItem value="callDone">Call Done</SelectItem>
-                <SelectItem value="callAgain">Call Again</SelectItem>
-                <SelectItem value="notInterested">Not Interested</SelectItem>
+                <SelectItem value="all">All dates</SelectItem>
+                <SelectItem value="today">Today</SelectItem>
+                <SelectItem value="yesterday">Yesterday</SelectItem>
+                <SelectItem value="last7">Last 7 days</SelectItem>
+                <SelectItem value="last30">Last 30 days</SelectItem>
+                <SelectItem value="custom">Custom range</SelectItem>
               </SelectContent>
             </Select>
-            <Select value={sortBy} onValueChange={(val) => { setSortBy(val); }}>
-              <SelectTrigger>
-                <SelectValue placeholder="Sort by" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="newest">Newest First</SelectItem>
-                <SelectItem value="oldest">Oldest First</SelectItem>
-                <SelectItem value="highest">Highest Price</SelectItem>
-                <SelectItem value="lowest">Lowest Price</SelectItem>
-              </SelectContent>
-            </Select>
+            {dateFilter === "custom" && (
+              <Input
+                type="date"
+                aria-label="Start date"
+                value={customStartDate}
+                onChange={(event) => setCustomStartDate(event.target.value)}
+              />
+            )}
+            {dateFilter === "custom" && (
+              <Input
+                type="date"
+                aria-label="End date"
+                value={customEndDate}
+                onChange={(event) => setCustomEndDate(event.target.value)}
+              />
+            )}
           </div>
 
-          {/* Orders Table */}
           <div className="mt-6 flex items-center justify-between gap-3">
             <h2 className="text-lg font-semibold">All Orders</h2>
-            <Button variant="outline" size="sm" onClick={refreshDashboard} disabled={loading}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void refreshDashboard()}
+              disabled={loading}
+            >
               {loading ? "Refreshing..." : "↻ Refresh"}
             </Button>
           </div>
           <OrdersTable
-            orders={orders}
             loading={loading}
+            orders={orders}
             onSelectOrder={(order) => {
               setSelectedOrder(order);
               setShowOrderDetail(true);
             }}
           />
 
-          <div className="mt-4 flex items-center justify-between">
-            <div className="text-sm text-muted-foreground">
+          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
               Showing {orders.length} of {totalOrders} orders
+            </p>
+            <div className="flex items-center gap-2">
+              <Select
+                value={String(pageSize)}
+                onValueChange={(value) => setPageSize(Number(value) as (typeof PAGE_SIZES)[number])}
+              >
+                <SelectTrigger className="w-24">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {PAGE_SIZES.map((size) => (
+                    <SelectItem key={size} value={String(size)}>
+                      {size} / page
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page === 1 || loading}
+                onClick={() => setPage((current) => current - 1)}
+              >
+                Previous
+              </Button>
+              <span className="whitespace-nowrap text-sm text-muted-foreground">
+                Page {page} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={page >= totalPages || loading}
+                onClick={() => setPage((current) => current + 1)}
+              >
+                Next
+              </Button>
             </div>
           </div>
         </main>
       </div>
 
-      {/* Order Detail Modal */}
       <OrderDetailModal
-        order={selectedOrder}
-        open={showOrderDetail}
+        deleting={deletingOrderId === selectedOrder?.id}
+        onDelete={(orderId) => setShowDeleteConfirm(orderId)}
         onOpenChange={setShowOrderDetail}
         onStatusChange={updateOrderStatus}
-        onCallStatusChange={updateCallStatus}
-        onPaymentChange={updatePayment}
-        onNoteAdd={addNote}
-        onDelete={(orderId) => {
-          setShowDeleteConfirm(orderId);
-        }}
+        open={showOrderDetail}
+        order={selectedOrder}
+        updating={updatingOrderId === selectedOrder?.id}
       />
-
-      {/* Delete Confirmation */}
-      <AlertDialog open={!!showDeleteConfirm} onOpenChange={(open) => !open && setShowDeleteConfirm(null)}>
+      <AlertDialog
+        open={!!showDeleteConfirm}
+        onOpenChange={(open) => !open && setShowDeleteConfirm(null)}
+      >
         <AlertDialogContent>
-          <AlertDialogTitle>Delete Order?</AlertDialogTitle>
+          <AlertDialogTitle>Delete order?</AlertDialogTitle>
           <AlertDialogDescription>
-            This action cannot be undone. The order will be permanently deleted from the system.
+            Are you sure you want to delete this order? This cannot be undone.
           </AlertDialogDescription>
-          <div className="flex gap-2 mt-6">
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <div className="mt-6 flex gap-2">
+            <AlertDialogCancel disabled={!!deletingOrderId}>Cancel</AlertDialogCancel>
             <AlertDialogAction
-              onClick={() => showDeleteConfirm && deleteOrder(showDeleteConfirm)}
               className="bg-destructive hover:bg-destructive/90"
+              disabled={!!deletingOrderId}
+              onClick={() => showDeleteConfirm && void deleteOrder(showDeleteConfirm)}
             >
-              Delete
+              {deletingOrderId ? "Deleting..." : "Delete order"}
             </AlertDialogAction>
           </div>
         </AlertDialogContent>
@@ -371,20 +528,24 @@ function ManagementPage() {
 }
 
 function LoginPage({
-  onLogin,
-  username,
-  setUsername,
+  email,
+  error,
+  loading,
   password,
+  setEmail,
   setPassword,
+  onLogin,
 }: {
-  onLogin: () => void;
-  username: string;
-  setUsername: (val: string) => void;
+  email: string;
+  error: string | null;
+  loading: boolean;
   password: string;
-  setPassword: (val: string) => void;
+  setEmail: (value: string) => void;
+  setPassword: (value: string) => void;
+  onLogin: () => void;
 }) {
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-blue-50 to-indigo-50">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
       <Card className="w-full max-w-md">
         <CardHeader>
           <CardTitle className="text-center text-2xl">Order Management</CardTitle>
@@ -392,25 +553,52 @@ function LoginPage({
         </CardHeader>
         <CardContent className="space-y-4">
           <div>
-            <label className="block text-sm font-semibold mb-2">Username</label>
+            <label className="mb-2 block text-sm font-semibold">Admin email</label>
             <Input
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Admin"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="admin@example.com"
+              autoComplete="email"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold mb-2">Password</label>
+            <label className="mb-2 block text-sm font-semibold">Password</label>
             <Input
               type="password"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(event) => setPassword(event.target.value)}
               placeholder="••••••••"
-              onKeyDown={(e) => e.key === "Enter" && onLogin()}
+              autoComplete="current-password"
+              onKeyDown={(event) => event.key === "Enter" && onLogin()}
             />
           </div>
-          <Button onClick={onLogin} className="w-full">
-            Sign In
+          {error && (
+            <p role="alert" className="text-sm font-medium text-destructive">
+              {error}
+            </p>
+          )}
+          <Button onClick={onLogin} className="w-full" disabled={loading || !email || !password}>
+            {loading ? "Signing in..." : "Sign In"}
+          </Button>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+function AccessDenied({ email, onLogout }: { email: string; onLogout: () => void }) {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-50 p-4">
+      <Card className="w-full max-w-md">
+        <CardHeader>
+          <CardTitle>Admin access required</CardTitle>
+          <CardDescription>
+            {email || "This account"} is authenticated but is not an administrator.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button className="w-full" onClick={() => void onLogout()}>
+            Sign out
           </Button>
         </CardContent>
       </Card>
@@ -420,49 +608,41 @@ function LoginPage({
 
 function Sidebar() {
   const menuItems = [
-    { label: "Dashboard", icon: "📊" },
-    { label: "All Orders", icon: "📦" },
-    { label: "New Orders", icon: "🟡" },
-    { label: "Call Pending", icon: "📞" },
-    { label: "Confirmed", icon: "✅" },
-    { label: "Processing", icon: "⚙️" },
-    { label: "Delivery", icon: "🚚" },
-    { label: "Delivered", icon: "🎁" },
-    { label: "Cancelled", icon: "❌" },
-    { label: "Customers", icon: "👥" },
-    { label: "Reports", icon: "📈" },
-    { label: "Settings", icon: "⚙️" },
+    ["📊", "Dashboard"],
+    ["📦", "All Orders"],
+    ["🟡", "Pending"],
+    ["⚙️", "Processing"],
+    ["🎁", "Delivered"],
   ];
-
   return (
-    <aside className="w-64 border-r bg-card p-4">
+    <aside className="hidden w-64 shrink-0 border-r bg-card p-4 lg:block">
       <div className="mb-8">
         <h1 className="text-2xl font-bold text-primary">💧 Humidifier</h1>
         <p className="text-xs text-muted-foreground">Order Management System</p>
       </div>
       <nav className="space-y-2">
-        {menuItems.map((item) => (
-          <button
-            key={item.label}
-            className="w-full text-left px-4 py-2 rounded-lg hover:bg-accent hover:text-accent-foreground transition-colors text-sm font-medium"
+        {menuItems.map(([icon, label]) => (
+          <div
+            key={label}
+            className="rounded-lg px-4 py-2 text-sm font-medium text-muted-foreground"
           >
-            <span className="mr-2">{item.icon}</span>
-            {item.label}
-          </button>
+            <span className="mr-2">{icon}</span>
+            {label}
+          </div>
         ))}
       </nav>
     </aside>
   );
 }
 
-function Header({ username, onLogout }: { username: string; onLogout: () => void }) {
+function Header({ email, onLogout }: { email: string; onLogout: () => void }) {
   return (
     <header className="border-b bg-card">
-      <div className="flex items-center justify-between px-6 py-4">
+      <div className="flex items-center justify-between gap-4 px-4 py-4 md:px-6">
         <h1 className="text-xl font-bold">Orders Dashboard</h1>
-        <div className="flex items-center gap-4">
-          <span className="text-sm text-muted-foreground">Logged in as {username}</span>
-          <Button variant="outline" size="sm" onClick={onLogout}>
+        <div className="flex items-center gap-3">
+          <span className="hidden text-sm text-muted-foreground sm:inline">{email}</span>
+          <Button variant="outline" size="sm" onClick={() => void onLogout()}>
             Logout
           </Button>
         </div>
@@ -471,94 +651,96 @@ function Header({ username, onLogout }: { username: string; onLogout: () => void
   );
 }
 
-function DashboardStats({ stats }: { stats: any }) {
-  if (!stats) return null;
-
-  const statCards = [
-    { label: "Total Orders", value: stats.total, color: "bg-blue-50" },
-    { label: "New Orders", value: stats.new, color: "bg-yellow-50" },
-    { label: "Call Pending", value: stats.callPending, color: "bg-orange-50" },
-    { label: "Confirmed", value: stats.confirmed, color: "bg-green-50" },
-    { label: "Processing", value: stats.processing, color: "bg-purple-50" },
-    { label: "Out for Delivery", value: stats.outForDelivery, color: "bg-indigo-50" },
-    { label: "Done", value: stats.done, color: "bg-emerald-50" },
-    { label: "Cancelled", value: stats.cancelled, color: "bg-red-50" },
-    { label: "Today's Orders", value: stats.todayOrders, color: "bg-cyan-50" },
+function DashboardStats({ stats }: { stats: DashboardStats | null }) {
+  const cards = [
+    ["Total Orders", stats?.total, "bg-blue-50"],
+    ["Today's Orders", stats?.today, "bg-cyan-50"],
+    ["Pending", stats?.pending, "bg-yellow-50"],
+    ["Confirmed", stats?.confirmed, "bg-green-50"],
+    ["Delivered", stats?.delivered, "bg-emerald-50"],
+    ["Cancelled", stats?.cancelled, "bg-red-50"],
   ];
-
   return (
-    <div>
-      <h2 className="text-2xl font-bold mb-4">Dashboard Overview</h2>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-3 lg:grid-cols-5">
-        {statCards.map((stat) => (
-          <Card key={stat.label} className={stat.color}>
-            <CardContent className="pt-6">
-              <div className="text-sm text-muted-foreground">{stat.label}</div>
-              <div className="mt-2 text-3xl font-bold">{stat.value}</div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+    <div className="grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
+      {cards.map(([label, value, color]) => (
+        <Card key={String(label)} className={String(color)}>
+          <CardContent className="pt-5">
+            <div className="text-sm text-muted-foreground">{label}</div>
+            <div className="mt-2 text-3xl font-bold">{stats ? value : "–"}</div>
+          </CardContent>
+        </Card>
+      ))}
     </div>
   );
 }
 
 function OrdersTable({
-  orders,
   loading,
+  orders,
   onSelectOrder,
 }: {
-  orders: Order[];
   loading: boolean;
-  onSelectOrder: (order: Order) => void;
+  orders: AdminOrder[];
+  onSelectOrder: (order: AdminOrder) => void;
 }) {
-  if (loading) return <div className="mt-6 text-center py-8 text-muted-foreground">Loading orders...</div>;
-
-  if (orders.length === 0) {
-    return <div className="mt-6 text-center py-8 text-muted-foreground">No orders found</div>;
-  }
-
+  if (loading && orders.length === 0)
+    return <div className="mt-6 py-8 text-center text-muted-foreground">Loading orders...</div>;
+  if (orders.length === 0)
+    return (
+      <div className="mt-6 py-8 text-center text-muted-foreground">No matching orders found.</div>
+    );
+  const headings = [
+    "Order ID",
+    "Customer",
+    "Phone",
+    "Address",
+    "Area",
+    "Color",
+    "Qty",
+    "Product",
+    "Product price",
+    "Delivery",
+    "Total",
+    "Status",
+    "Date",
+  ];
   return (
     <div className="mt-6 overflow-x-auto rounded-lg border">
-      <table className="w-full">
+      <table className="min-w-[1500px] w-full">
         <thead className="bg-muted">
           <tr>
-            <th className="px-4 py-3 text-left text-sm font-semibold">ID</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Customer</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Phone</th>
-            <th className="px-4 py-3 text-right text-sm font-semibold">Amount</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Order Status</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Call Status</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Payment</th>
-            <th className="px-4 py-3 text-left text-sm font-semibold">Date</th>
-            <th className="px-4 py-3 text-center text-sm font-semibold">Action</th>
+            {headings.map((heading) => (
+              <th key={heading} className="px-4 py-3 text-left text-sm font-semibold">
+                {heading}
+              </th>
+            ))}
           </tr>
         </thead>
         <tbody>
           {orders.map((order) => (
-            <tr key={order.id} className="border-t hover:bg-muted/50 cursor-pointer" onClick={() => onSelectOrder(order)}>
-              <td className="px-4 py-3 text-sm font-mono text-muted-foreground">{order.id.slice(0, 8)}</td>
-              <td className="px-4 py-3 text-sm font-medium">{order.name}</td>
+            <tr
+              key={order.id}
+              className="cursor-pointer border-t hover:bg-muted/50"
+              onClick={() => onSelectOrder(order)}
+            >
+              <td className="px-4 py-3 text-sm font-mono">{order.id}</td>
+              <td className="px-4 py-3 text-sm font-medium">{order.customer_name}</td>
               <td className="px-4 py-3 text-sm">{order.phone}</td>
-              <td className="px-4 py-3 text-right text-sm font-semibold">৳{order.totalPrice}</td>
-              <td className="px-4 py-3 text-sm">
-                <Badge variant="outline">{ORDER_STATUS_LABELS[order.orderStatus]}</Badge>
+              <td className="max-w-56 truncate px-4 py-3 text-sm" title={order.address}>
+                {order.address}
               </td>
+              <td className="px-4 py-3 text-sm">{order.delivery_area}</td>
+              <td className="px-4 py-3 text-sm capitalize">{order.color}</td>
+              <td className="px-4 py-3 text-sm">{order.quantity}</td>
+              <td className="px-4 py-3 text-sm">{order.product_name}</td>
+              <td className="px-4 py-3 text-sm">৳{order.product_price}</td>
+              <td className="px-4 py-3 text-sm">৳{order.delivery_charge}</td>
+              <td className="px-4 py-3 text-sm font-semibold">৳{order.total_price}</td>
               <td className="px-4 py-3 text-sm">
-                <Badge variant="secondary">{CALL_STATUS_LABELS[order.callStatus]}</Badge>
-              </td>
-              <td className="px-4 py-3 text-sm">
-                <Badge variant={order.paymentStatus === "paid" ? "default" : "secondary"}>
-                  {PAYMENT_STATUS_LABELS[order.paymentStatus]}
-                </Badge>
+                <StatusBadge status={order.status} />
               </td>
               <td className="px-4 py-3 text-sm text-muted-foreground">
-                {new Date(order.createdAt).toLocaleDateString()}
-              </td>
-              <td className="px-4 py-3 text-center">
-                <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); onSelectOrder(order); }}>
-                  View
-                </Button>
+                {formatDhakaDate(order.created_at)}
               </td>
             </tr>
           ))}
@@ -569,249 +751,68 @@ function OrdersTable({
 }
 
 function OrderDetailModal({
-  order,
-  open,
+  deleting,
+  onDelete,
   onOpenChange,
   onStatusChange,
-  onCallStatusChange,
-  onPaymentChange,
-  onNoteAdd,
-  onDelete,
+  open,
+  order,
+  updating,
 }: {
-  order: Order | null;
-  open: boolean;
+  deleting: boolean;
+  onDelete: (orderId: string) => void;
   onOpenChange: (open: boolean) => void;
   onStatusChange: (orderId: string, status: OrderStatus) => void;
-  onCallStatusChange: (orderId: string, result: CallStatus, note?: string) => void;
-  onPaymentChange: (orderId: string, paidAmount: number) => void;
-  onNoteAdd: (orderId: string, notes: string) => void;
-  onDelete: (orderId: string) => void;
+  open: boolean;
+  order: AdminOrder | null;
+  updating: boolean;
 }) {
-  const [paidAmount, setPaidAmount] = useState("");
-  const [newNote, setNewNote] = useState("");
-
-  useEffect(() => {
-    if (order) {
-      setPaidAmount(String(order.paidAmount));
-      setNewNote(order.notes || "");
-    }
-  }, [order]);
-
   if (!order) return null;
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
         <DialogHeader>
-          <DialogTitle>Order Details: {order.id}</DialogTitle>
+          <DialogTitle>Order details</DialogTitle>
         </DialogHeader>
-
-        <Tabs defaultValue="details" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="details">Details</TabsTrigger>
-            <TabsTrigger value="status">Status</TabsTrigger>
-            <TabsTrigger value="call">Call</TabsTrigger>
-            <TabsTrigger value="payment">Payment</TabsTrigger>
-          </TabsList>
-
-          {/* Details Tab */}
-          <TabsContent value="details" className="space-y-4 mt-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Customer Name</label>
-                <div className="text-lg font-medium">{order.name}</div>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Phone</label>
-                <div className="text-lg font-medium">{order.phone}</div>
-              </div>
-              <div className="col-span-2">
-                <label className="text-sm font-semibold text-muted-foreground">Address</label>
-                <div className="text-lg font-medium">{order.address}</div>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Quantity</label>
-                <div className="text-lg font-medium">{order.qty} units</div>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Color</label>
-                <div className="text-lg font-medium">{order.color}</div>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Area</label>
-                <div className="text-lg font-medium">{order.area === "inside" ? "Inside Dhaka" : "Outside Dhaka"}</div>
-              </div>
-              <div>
-                <label className="text-sm font-semibold text-muted-foreground">Created</label>
-                <div className="text-lg font-medium">{new Date(order.createdAt).toLocaleString()}</div>
-              </div>
-            </div>
-
-            {/* Notes Section */}
-            <div className="mt-4 pt-4 border-t">
-              <label className="text-sm font-semibold">Internal Notes</label>
-              <div className="mt-2 space-y-2">
-                <Input
-                  value={newNote}
-                  onChange={(e) => setNewNote(e.target.value)}
-                  placeholder="Add internal notes..."
-                />
-                <Button
-                  size="sm"
-                  onClick={() => {
-                    onNoteAdd(order.id, newNote);
-                    setNewNote("");
-                  }}
-                >
-                  Save Note
-                </Button>
-              </div>
-            </div>
-          </TabsContent>
-
-          {/* Status Tab */}
-          <TabsContent value="status" className="space-y-4 mt-4">
-            <div>
-              <label className="text-sm font-semibold mb-2 block">Update Order Status</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["new", "callPending", "confirmed", "processing", "deliveryPending", "outForDelivery", "done", "cancelled"] as OrderStatus[]).map((status) => (
-                  <Button
-                    key={status}
-                    variant={order.orderStatus === status ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => onStatusChange(order.id, status)}
-                  >
-                    {ORDER_STATUS_LABELS[status]}
-                  </Button>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Detail label="Order ID" value={order.id} />
+          <Detail label="Order date" value={formatDhakaDate(order.created_at)} />
+          <Detail label="Customer name" value={order.customer_name} />
+          <Detail label="Phone" value={order.phone} />
+          <Detail className="sm:col-span-2" label="Full address" value={order.address} />
+          <Detail label="Delivery area" value={order.delivery_area} />
+          <Detail label="Color" value={order.color} />
+          <Detail label="Product" value={order.product_name} />
+          <Detail label="Quantity" value={String(order.quantity)} />
+          <Detail label="Product price" value={`৳${order.product_price}`} />
+          <Detail label="Delivery charge" value={`৳${order.delivery_charge}`} />
+          <Detail label="Total price" value={`৳${order.total_price}`} />
+          <div>
+            <label className="mb-1 block text-sm font-semibold text-muted-foreground">
+              Order status
+            </label>
+            <Select
+              value={order.status}
+              onValueChange={(value) => onStatusChange(order.id, value as OrderStatus)}
+              disabled={updating}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {ORDER_STATUSES.map((status) => (
+                  <SelectItem key={status} value={status}>
+                    {STATUS_LABELS[status]}
+                  </SelectItem>
                 ))}
-              </div>
-            </div>
-
-            {/* Status History */}
-            {order.statusHistory && order.statusHistory.length > 0 && (
-              <div className="pt-4 border-t">
-                <label className="text-sm font-semibold mb-2 block">Status History</label>
-                <div className="space-y-2">
-                  {order.statusHistory.map((record, idx) => (
-                    <div key={idx} className="text-sm p-2 bg-muted rounded">
-                      <div className="font-medium">{ORDER_STATUS_LABELS[record.status]}</div>
-                      <div className="text-xs text-muted-foreground">{new Date(record.timestamp).toLocaleString()}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Call Tab */}
-          <TabsContent value="call" className="space-y-4 mt-4">
-            <div>
-              <label className="text-sm font-semibold mb-2 block">Log Call Result</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["callDone", "noAnswer", "notInterested", "callAgain"] as CallStatus[]).map((status) => (
-                  <Button
-                    key={status}
-                    variant="outline"
-                    size="sm"
-                    onClick={() => onCallStatusChange(order.id, status)}
-                  >
-                    {CALL_STATUS_LABELS[status]}
-                  </Button>
-                ))}
-              </div>
-            </div>
-
-            {/* Call History */}
-            {order.callHistory && order.callHistory.length > 0 && (
-              <div className="pt-4 border-t">
-                <label className="text-sm font-semibold mb-2 block">Call History</label>
-                <div className="space-y-2">
-                  {order.callHistory.map((record, idx) => (
-                    <div key={idx} className="text-sm p-2 bg-muted rounded">
-                      <div className="font-medium">{CALL_STATUS_LABELS[record.result]}</div>
-                      <div className="text-xs text-muted-foreground">{new Date(record.timestamp).toLocaleString()}</div>
-                      {record.note && <div className="text-xs mt-1">{record.note}</div>}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </TabsContent>
-
-          {/* Payment Tab */}
-          <TabsContent value="payment" className="space-y-4 mt-4">
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                <div>
-                  <span className="text-muted-foreground">Product Price:</span>
-                  <div className="text-lg font-semibold">৳{order.productPrice}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Qty:</span>
-                  <div className="text-lg font-semibold">{order.qty}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Delivery:</span>
-                  <div className="text-lg font-semibold">৳{order.deliveryCharge}</div>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Discount:</span>
-                  <div className="text-lg font-semibold">-৳{order.discount}</div>
-                </div>
-              </div>
-
-              <div className="pt-2 border-t">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="font-semibold">Total Amount:</span>
-                  <span className="text-2xl font-bold text-primary">৳{order.totalPrice}</span>
-                </div>
-              </div>
-
-              <div>
-                <label className="text-sm font-semibold block mb-2">Payment Received</label>
-                <div className="flex gap-2">
-                  <Input
-                    type="number"
-                    value={paidAmount}
-                    onChange={(e) => setPaidAmount(e.target.value)}
-                    placeholder="Amount paid"
-                  />
-                  <Button
-                    onClick={() => {
-                      onPaymentChange(order.id, parseInt(paidAmount));
-                      setPaidAmount("");
-                    }}
-                  >
-                    Update
-                  </Button>
-                </div>
-              </div>
-
-              <div className="p-3 bg-accent rounded">
-                <div className="flex justify-between mb-2">
-                  <span>Paid:</span>
-                  <span className="font-semibold">৳{order.paidAmount}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Due:</span>
-                  <span className="font-semibold text-destructive">৳{order.dueAmount}</span>
-                </div>
-              </div>
-
-              <Badge className="w-full justify-center" variant={order.paymentStatus === "paid" ? "default" : "secondary"}>
-                {PAYMENT_STATUS_LABELS[order.paymentStatus]}
-              </Badge>
-            </div>
-          </TabsContent>
-        </Tabs>
-
-        {/* Footer Actions */}
-        <div className="flex gap-2 justify-end mt-6 pt-4 border-t">
-          <Button variant="destructive" onClick={() => onDelete(order.id)}>
-            Delete Order
-          </Button>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Close
+              </SelectContent>
+            </Select>
+            {updating && <p className="mt-1 text-xs text-muted-foreground">Saving status...</p>}
+          </div>
+        </div>
+        <div className="mt-4 flex justify-end border-t pt-4">
+          <Button variant="destructive" disabled={deleting} onClick={() => onDelete(order.id)}>
+            {deleting ? "Deleting..." : "Delete order"}
           </Button>
         </div>
       </DialogContent>
@@ -819,4 +820,81 @@ function OrderDetailModal({
   );
 }
 
-export default Route;
+function Detail({
+  className = "",
+  label,
+  value,
+}: {
+  className?: string;
+  label: string;
+  value: string;
+}) {
+  return (
+    <div className={className}>
+      <div className="text-sm font-semibold text-muted-foreground">{label}</div>
+      <div className="mt-1 break-words text-base font-medium">{value}</div>
+    </div>
+  );
+}
+
+function StatusBadge({ status }: { status: OrderStatus }) {
+  return (
+    <Badge
+      variant={
+        status === "cancelled" ? "destructive" : status === "delivered" ? "default" : "secondary"
+      }
+    >
+      {STATUS_LABELS[status]}
+    </Badge>
+  );
+}
+
+function formatDhakaDate(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Dhaka",
+  }).format(new Date(value));
+}
+
+function getDateRange(filter: DateFilter, customStart: string, customEnd: string): DateRange {
+  const today = getDhakaDateString();
+  if (filter === "all") return {};
+  if (filter === "today")
+    return { from: startOfDhakaDay(today), to: startOfDhakaDay(addDays(today, 1)) };
+  if (filter === "yesterday")
+    return { from: startOfDhakaDay(addDays(today, -1)), to: startOfDhakaDay(today) };
+  if (filter === "last7")
+    return { from: startOfDhakaDay(addDays(today, -6)), to: startOfDhakaDay(addDays(today, 1)) };
+  if (filter === "last30")
+    return { from: startOfDhakaDay(addDays(today, -29)), to: startOfDhakaDay(addDays(today, 1)) };
+  const range: DateRange = {};
+  if (customStart) range.from = startOfDhakaDay(customStart);
+  if (customEnd) range.to = startOfDhakaDay(addDays(customEnd, 1));
+  return range;
+}
+
+function getDhakaDateString(date = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Dhaka",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: string) => parts.find((item) => item.type === type)?.value ?? "";
+  return `${part("year")}-${part("month")}-${part("day")}`;
+}
+
+function startOfDhakaDay(date: string) {
+  return new Date(`${date}T00:00:00+06:00`).toISOString();
+}
+
+function addDays(date: string, amount: number) {
+  const result = new Date(`${date}T00:00:00Z`);
+  result.setUTCDate(result.getUTCDate() + amount);
+  return result.toISOString().slice(0, 10);
+}
+
+function isUuid(value: string) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}

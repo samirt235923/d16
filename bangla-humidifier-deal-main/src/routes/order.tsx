@@ -1,11 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import heroImg from "@/assets/product_1770548124_69886b9c71c18.jpg";
 import { PRICE, OLD_PRICE, DELIVERY_INSIDE, DELIVERY_OUTSIDE } from "@/lib/media";
+import { getAnonymousSupabaseClient } from "@/lib/supabase";
 
 const title = "অর্ডার করুন — D16 Air Humidifier with Night Light - 180ML";
 const description =
   "D16 Air Humidifier with Night Light - 180ML অর্ডার করুন। USB Powered, 7-Color LED এবং ক্যাশ অন ডেলিভারি সুবিধা।";
+
+const PRODUCT_NAME = "D16 Mini Air Humidifier";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -28,6 +31,9 @@ function OrderPage() {
   const [form, setForm] = useState({ name: "", phone: "", address: "" });
   const [touched, setTouched] = useState(false);
   const [done, setDone] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const submissionInProgress = useRef(false);
 
   const delivery = area === "inside" ? DELIVERY_INSIDE : DELIVERY_OUTSIDE;
   const subtotal = PRICE * qty;
@@ -36,7 +42,9 @@ function OrderPage() {
   const nameOk = form.name.trim().length > 1;
   const phoneOk = /^01\d{9}$/.test(form.phone.trim());
   const addressOk = form.address.trim().length > 5;
-  const valid = nameOk && phoneOk && addressOk;
+  const deliveryAreaOk = area === "inside" || area === "outside";
+  const quantityOk = Number.isInteger(qty) && qty >= 1;
+  const valid = nameOk && phoneOk && addressOk && deliveryAreaOk && quantityOk;
 
   const field = (ok: boolean) =>
     `w-full rounded-2xl border-2 bg-background px-4 py-4 text-lg outline-none transition-colors placeholder:text-muted-foreground/70 focus:border-primary ${
@@ -52,9 +60,8 @@ function OrderPage() {
           </div>
           <h1 className="mt-4 text-2xl font-bold">ধন্যবাদ! অর্ডার পেয়েছি</h1>
           <p className="mt-3 text-[15px] leading-relaxed text-muted-foreground">
-            আমাদের প্রতিনিধি শীঘ্রই{" "}
-            <span className="font-bold text-foreground">{form.phone}</span> নাম্বারে কল
-            করবেন। ফোন ধরে অর্ডার কনফার্ম করুন।
+            আমাদের প্রতিনিধি শীঘ্রই <span className="font-bold text-foreground">{form.phone}</span>{" "}
+            নাম্বারে কল করবেন। ফোন ধরে অর্ডার কনফার্ম করুন।
           </p>
           <div className="mt-5 rounded-2xl bg-secondary px-4 py-4 text-lg font-bold">
             হাতে পেয়ে দিবেন: <span className="text-primary">৳{total}</span>
@@ -108,26 +115,46 @@ function OrderPage() {
           onSubmit={async (e) => {
             e.preventDefault();
             setTouched(true);
+            setSubmitError(null);
             if (!valid) return;
-            const payload = { ...form, qty, color, area };
+
+            if (submissionInProgress.current) return;
+            submissionInProgress.current = true;
+            setIsSubmitting(true);
+
             try {
-              const res = await fetch(`/management-api/orders`, {
-                method: "POST",
-                headers: { "content-type": "application/json" },
-                body: JSON.stringify(payload),
+              const client = getAnonymousSupabaseClient();
+              const { error } = await client.from("orders").insert({
+                customer_name: form.name.trim(),
+                phone: form.phone.trim(),
+                address: form.address.trim(),
+                delivery_area: area,
+                color,
+                quantity: qty,
+                product_name: PRODUCT_NAME,
+                product_price: PRICE,
+                delivery_charge: delivery,
+                total_price: total,
               });
-              if (!res.ok) {
-                const body = await res.json().catch(() => null) as { error?: string } | null;
-                console.error("Order API error", res.status, body);
-                alert(body?.error || `Order submission failed (${res.status}).`);
+              if (error) {
+                console.error("Supabase order submission error:", {
+                  message: error.message,
+                  code: error.code,
+                  details: error.details,
+                  hint: error.hint,
+                });
+                setSubmitError("দুঃখিত, অর্ডারটি সংরক্ষণ করা যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।");
                 return;
               }
-            } catch (e) {
-              console.error(e);
-              alert("Network error submitting order");
-              return;
+
+              setDone(true);
+            } catch (error) {
+              console.error("Supabase order submission exception:", error);
+              setSubmitError("দুঃখিত, অর্ডারটি সংরক্ষণ করা যায়নি। কিছুক্ষণ পরে আবার চেষ্টা করুন।");
+            } finally {
+              submissionInProgress.current = false;
+              setIsSubmitting(false);
             }
-            setDone(true);
           }}
           className="mt-4 space-y-5 rounded-3xl bg-card p-5 shadow-soft"
         >
@@ -171,10 +198,12 @@ function OrderPage() {
 
           <Field label="৪) আপনি কোথায় আছেন?">
             <div className="grid grid-cols-2 gap-3">
-              {([
-                ["inside", "ঢাকার ভিতরে", DELIVERY_INSIDE],
-                ["outside", "ঢাকার বাইরে", DELIVERY_OUTSIDE],
-              ] as const).map(([key, label, charge]) => {
+              {(
+                [
+                  ["inside", "ঢাকার ভিতরে", DELIVERY_INSIDE],
+                  ["outside", "ঢাকার বাইরে", DELIVERY_OUTSIDE],
+                ] as const
+              ).map(([key, label, charge]) => {
                 const active = area === key;
                 return (
                   <button
@@ -197,10 +226,12 @@ function OrderPage() {
 
           <Field label="৫) কালার বাছাই করুন">
             <div className="grid grid-cols-2 gap-3">
-              {([
-                ["black", "কালো", "#1c1c1e"],
-                ["white", "সাদা", "#f3f4f6"],
-              ] as const).map(([key, label, swatch]) => {
+              {(
+                [
+                  ["black", "কালো", "#1c1c1e"],
+                  ["white", "সাদা", "#f3f4f6"],
+                ] as const
+              ).map(([key, label, swatch]) => {
                 const active = color === key;
                 return (
                   <button
@@ -218,9 +249,7 @@ function OrderPage() {
                       style={{ backgroundColor: swatch }}
                     />
                     {label}
-                    {active && (
-                      <span className="ml-auto text-xs text-primary">✓</span>
-                    )}
+                    {active && <span className="ml-auto text-xs text-primary">✓</span>}
                   </button>
                 );
               })}
@@ -237,9 +266,7 @@ function OrderPage() {
               >
                 −
               </button>
-              <span className="flex-1 text-center text-xl font-bold tabular-nums">
-                {qty}
-              </span>
+              <span className="flex-1 text-center text-xl font-bold tabular-nums">{qty}</span>
               <button
                 type="button"
                 aria-label="বাড়ান"
@@ -253,7 +280,9 @@ function OrderPage() {
 
           <div className="rounded-2xl bg-secondary p-4">
             <div className="flex items-center justify-between py-1 text-sm text-muted-foreground">
-              <span>D16 Humidifier ({color === "black" ? "কালো" : "সাদা"}) × {qty}</span>
+              <span>
+                D16 Humidifier ({color === "black" ? "কালো" : "সাদা"}) × {qty}
+              </span>
               <span className="font-semibold text-foreground">৳{subtotal}</span>
             </div>
             <div className="flex items-center justify-between py-1 text-sm text-muted-foreground">
@@ -270,8 +299,21 @@ function OrderPage() {
             </p>
           </div>
 
-          <button type="submit" className="btn-cta">
-            অর্ডার কনফার্ম করুন ✅
+          {submitError && (
+            <p
+              role="alert"
+              className="rounded-xl bg-destructive/10 px-4 py-3 text-center text-sm font-medium text-destructive"
+            >
+              {submitError}
+            </p>
+          )}
+
+          <button
+            type="submit"
+            className="btn-cta disabled:cursor-not-allowed disabled:opacity-70"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? "অর্ডার পাঠানো হচ্ছে..." : <>অর্ডার কনফার্ম করুন ✅</>}
           </button>
           <p className="text-center text-xs leading-relaxed text-muted-foreground">
             🔒 আপনার তথ্য গোপন থাকবে · এখন কোনো টাকা লাগবে না
