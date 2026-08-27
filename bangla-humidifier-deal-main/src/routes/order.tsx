@@ -8,7 +8,7 @@ const title = "অর্ডার করুন — D16 Air Humidifier with Night
 const description =
   "D16 Air Humidifier with Night Light - 180ML অর্ডার করুন। USB Powered, 7-Color LED এবং ক্যাশ অন ডেলিভারি সুবিধা।";
 
-const PRODUCT_NAME = "D16 Mini Air Humidifier";
+const PRODUCT_NAME = "D16 Air Humidifier";
 
 export const Route = createFileRoute("/order")({
   head: () => ({
@@ -92,13 +92,13 @@ function OrderPage() {
         <div className="flex items-center gap-3 rounded-3xl bg-card p-3 shadow-card">
           <img
             src={heroImg}
-            alt="D16 Mini Air Humidifier"
+            alt="D16 Air Humidifier"
             width={80}
             height={80}
             className="h-20 w-20 shrink-0 rounded-2xl object-cover"
           />
           <div className="min-w-0">
-            <p className="truncate text-[15px] font-bold">D16 Mini Air Humidifier</p>
+            <p className="truncate text-[15px] font-bold">D16 Air Humidifier</p>
             <p className="mt-0.5">
               <span className="text-2xl font-bold text-primary">৳{PRICE}</span>{" "}
               <span className="text-sm text-muted-foreground line-through">৳{OLD_PRICE}</span>
