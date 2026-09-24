@@ -34,7 +34,7 @@ const ORDER_STATUSES = [
 ] as const;
 const PAGE_SIZES = [20, 50, 100] as const;
 const ORDER_COLUMNS =
-  "id, customer_name, phone, address, delivery_area, color, quantity, product_name, product_price, delivery_charge, total_price, status, created_at";
+  "id, customer_name, phone, address, delivery_area, color, note, quantity, product_name, product_price, delivery_charge, total_price, status, created_at";
 
 type OrderStatus = (typeof ORDER_STATUSES)[number];
 type AuthState = "checking" | "unauthenticated" | "forbidden" | "authenticated";
@@ -48,6 +48,7 @@ type AdminOrder = {
   address: string;
   delivery_area: string;
   color: string;
+  note: string | null;
   quantity: number;
   product_name: string;
   product_price: number;
@@ -696,6 +697,7 @@ function OrdersTable({
     "Address",
     "Area",
     "Color",
+    "Note",
     "Qty",
     "Product",
     "Product price",
@@ -731,6 +733,9 @@ function OrdersTable({
               </td>
               <td className="px-4 py-3 text-sm">{order.delivery_area}</td>
               <td className="px-4 py-3 text-sm capitalize">{order.color}</td>
+              <td className="max-w-48 truncate px-4 py-3 text-sm" title={order.note ?? ""}>
+                {order.note || "-"}
+              </td>
               <td className="px-4 py-3 text-sm">{order.quantity}</td>
               <td className="px-4 py-3 text-sm">{order.product_name}</td>
               <td className="px-4 py-3 text-sm">৳{order.product_price}</td>
@@ -782,6 +787,7 @@ function OrderDetailModal({
           <Detail className="sm:col-span-2" label="Full address" value={order.address} />
           <Detail label="Delivery area" value={order.delivery_area} />
           <Detail label="Color" value={order.color} />
+          <Detail className="sm:col-span-2" label="Customer note" value={order.note || "No note"} />
           <Detail label="Product" value={order.product_name} />
           <Detail label="Quantity" value={String(order.quantity)} />
           <Detail label="Product price" value={`৳${order.product_price}`} />

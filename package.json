@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "cd ./bangla-humidifier-deal-main && npm run dev",
     "build": "cd ./bangla-humidifier-deal-main && npm run build",
+    "lint": "cd ./bangla-humidifier-deal-main && npm run lint",
     "preview": "cd ./bangla-humidifier-deal-main && npm run preview"
   },
   "dependencies": {

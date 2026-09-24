@@ -1,26 +1,27 @@
 import { useEffect, useState } from "react";
 
-const TOTAL = 2 * 3600 + 15 * 60 + 48;
-const KEY = "d16_offer_deadline";
+const DEFAULT_TOTAL = 2 * 3600 + 15 * 60 + 48;
 
-function useCountdown() {
-  const [left, setLeft] = useState(TOTAL);
+function useCountdown(durationSeconds: number, storageKey: string) {
+  const [left, setLeft] = useState(durationSeconds);
 
   useEffect(() => {
-    let deadline = Number(localStorage.getItem(KEY));
+    const dayKey = `${storageKey}_${new Date().toISOString().slice(0, 10)}_${durationSeconds}`;
+    let deadline = Number(localStorage.getItem(dayKey));
     if (!deadline || deadline < Date.now()) {
-      deadline = Date.now() + TOTAL * 1000;
-      localStorage.setItem(KEY, String(deadline));
+      deadline = Date.now() + durationSeconds * 1000;
+      localStorage.setItem(dayKey, String(deadline));
     }
     const tick = () =>
       setLeft(Math.max(0, Math.floor((deadline - Date.now()) / 1000)));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [durationSeconds, storageKey]);
 
   return {
-    h: Math.floor(left / 3600),
+    d: Math.floor(left / 86400),
+    h: Math.floor((left % 86400) / 3600),
     m: Math.floor((left % 3600) / 60),
     s: left % 60,
   };
@@ -28,8 +29,8 @@ function useCountdown() {
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-export function Countdown({ tone = "light" }: { tone?: "light" | "dark" }) {
-  const { h, m, s } = useCountdown();
+export function Countdown({ tone = "light", durationSeconds = DEFAULT_TOTAL, storageKey = "gizmozone_offer" }: { tone?: "light" | "dark"; durationSeconds?: number; storageKey?: string }) {
+  const { d, h, m, s } = useCountdown(durationSeconds, storageKey);
   const box =
     tone === "dark"
       ? "bg-primary-foreground/15 text-primary-foreground"
@@ -39,6 +40,7 @@ export function Countdown({ tone = "light" }: { tone?: "light" | "dark" }) {
   return (
     <div className="flex items-center justify-center gap-2">
       {[
+        [pad(d), "দিন"],
         [pad(h), "ঘণ্টা"],
         [pad(m), "মিনিট"],
         [pad(s), "সেকেন্ড"],

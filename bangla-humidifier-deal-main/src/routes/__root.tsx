@@ -8,9 +8,11 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
+import { MessageCircle } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { siteConfig } from "../data/siteConfig";
 
 function NotFoundComponent() {
   return (
@@ -77,11 +79,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Lovable App" },
-      { name: "description", content: "Lovable Generated Project" },
-      { name: "author", content: "Lovable" },
-      { property: "og:title", content: "Lovable App" },
-      { property: "og:description", content: "Lovable Generated Project" },
+      { title: `${siteConfig.brandName} | স্মার্ট গ্যাজেটের দোকান` },
+      { name: "description", content: "GizmoZone BD থেকে দরকারি gadget কিনুন ক্যাশ অন ডেলিভারিতে।" },
+      { name: "author", content: siteConfig.brandName },
+      { property: "og:title", content: siteConfig.brandName },
+      { property: "og:description", content: "বিশ্বাসযোগ্য দামে দরকারি gadget, সারা দেশে delivery।" },
       { property: "og:type", content: "website" },
       { name: "twitter:card", content: "summary_large_image" },
       { name: "twitter:site", content: "@Lovable" },
@@ -109,12 +111,22 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 
 function RootShell({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="bn">
       <head>
         <HeadContent />
       </head>
       <body>
         {children}
+        <a
+          href={`https://wa.me/88${siteConfig.whatsapp}`}
+          target="_blank"
+          rel="noreferrer"
+          aria-label="Contact WhatsApp Support"
+          className="fixed bottom-3 right-3 z-50 inline-flex h-9 min-h-9 items-center gap-1.5 rounded-full bg-[#25D366] px-3 py-1.5 text-xs font-bold text-white shadow-lg transition-transform hover:scale-105 hover:bg-[#20bd5a] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#25D366] focus-visible:ring-offset-2 md:bottom-5 md:right-5"
+        >
+          <MessageCircle aria-hidden="true" className="h-4 w-4" />
+          <span>WhatsApp Support</span>
+        </a>
         <Scripts />
       </body>
     </html>

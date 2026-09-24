@@ -10,12 +10,32 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as CheckoutRouteImport } from './routes/checkout'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as ManagementRouteImport } from './routes/management'
 import { Route as OrderRouteImport } from './routes/order'
+import { Route as PrivacyPolicyRouteImport } from './routes/privacy-policy'
+import { Route as ReturnRefundPolicyRouteImport } from './routes/return-refund-policy'
+import { Route as TermsRouteImport } from './routes/terms'
+import { Route as ThankYouRouteImport } from './routes/thank-you'
+import { Route as CategorySlugRouteImport } from './routes/category/$slug'
+import { Route as ProductManagementIndexRouteImport } from './routes/product-management/index'
+import { Route as ProductManagementLoginRouteImport } from './routes/product-management/login'
+import { Route as ProductSlugRouteImport } from './routes/product/$slug'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CheckoutRoute = CheckoutRouteImport.update({
+  id: '/checkout',
+  path: '/checkout',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ManagementRoute = ManagementRouteImport.update({
@@ -28,35 +48,155 @@ const OrderRoute = OrderRouteImport.update({
   path: '/order',
   getParentRoute: () => rootRouteImport,
 } as any)
+const PrivacyPolicyRoute = PrivacyPolicyRouteImport.update({
+  id: '/privacy-policy',
+  path: '/privacy-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReturnRefundPolicyRoute = ReturnRefundPolicyRouteImport.update({
+  id: '/return-refund-policy',
+  path: '/return-refund-policy',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TermsRoute = TermsRouteImport.update({
+  id: '/terms',
+  path: '/terms',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ThankYouRoute = ThankYouRouteImport.update({
+  id: '/thank-you',
+  path: '/thank-you',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const CategorySlugRoute = CategorySlugRouteImport.update({
+  id: '/category/$slug',
+  path: '/category/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductManagementIndexRoute = ProductManagementIndexRouteImport.update({
+  id: '/product-management/',
+  path: '/product-management/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductManagementLoginRoute = ProductManagementLoginRouteImport.update({
+  id: '/product-management/login',
+  path: '/product-management/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ProductSlugRoute = ProductSlugRouteImport.update({
+  id: '/product/$slug',
+  path: '/product/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/management': typeof ManagementRoute
   '/order': typeof OrderRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/return-refund-policy': typeof ReturnRefundPolicyRoute
+  '/terms': typeof TermsRoute
+  '/thank-you': typeof ThankYouRoute
+  '/category/$slug': typeof CategorySlugRoute
+  '/product-management/login': typeof ProductManagementLoginRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/product-management/': typeof ProductManagementIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/management': typeof ManagementRoute
   '/order': typeof OrderRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/return-refund-policy': typeof ReturnRefundPolicyRoute
+  '/terms': typeof TermsRoute
+  '/thank-you': typeof ThankYouRoute
+  '/category/$slug': typeof CategorySlugRoute
+  '/product-management/login': typeof ProductManagementLoginRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/product-management': typeof ProductManagementIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/checkout': typeof CheckoutRoute
+  '/contact': typeof ContactRoute
   '/management': typeof ManagementRoute
   '/order': typeof OrderRoute
+  '/privacy-policy': typeof PrivacyPolicyRoute
+  '/return-refund-policy': typeof ReturnRefundPolicyRoute
+  '/terms': typeof TermsRoute
+  '/thank-you': typeof ThankYouRoute
+  '/category/$slug': typeof CategorySlugRoute
+  '/product-management/login': typeof ProductManagementLoginRoute
+  '/product/$slug': typeof ProductSlugRoute
+  '/product-management/': typeof ProductManagementIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/management' | '/order'
+  fullPaths:
+    | '/'
+    | '/checkout'
+    | '/contact'
+    | '/management'
+    | '/order'
+    | '/privacy-policy'
+    | '/return-refund-policy'
+    | '/terms'
+    | '/thank-you'
+    | '/category/$slug'
+    | '/product-management/login'
+    | '/product/$slug'
+    | '/product-management/'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/management' | '/order'
-  id: '__root__' | '/' | '/management' | '/order'
+  to:
+    | '/'
+    | '/checkout'
+    | '/contact'
+    | '/management'
+    | '/order'
+    | '/privacy-policy'
+    | '/return-refund-policy'
+    | '/terms'
+    | '/thank-you'
+    | '/category/$slug'
+    | '/product-management/login'
+    | '/product/$slug'
+    | '/product-management'
+  id:
+    | '__root__'
+    | '/'
+    | '/checkout'
+    | '/contact'
+    | '/management'
+    | '/order'
+    | '/privacy-policy'
+    | '/return-refund-policy'
+    | '/terms'
+    | '/thank-you'
+    | '/category/$slug'
+    | '/product-management/login'
+    | '/product/$slug'
+    | '/product-management/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  CheckoutRoute: typeof CheckoutRoute
+  ContactRoute: typeof ContactRoute
   ManagementRoute: typeof ManagementRoute
   OrderRoute: typeof OrderRoute
+  PrivacyPolicyRoute: typeof PrivacyPolicyRoute
+  ReturnRefundPolicyRoute: typeof ReturnRefundPolicyRoute
+  TermsRoute: typeof TermsRoute
+  ThankYouRoute: typeof ThankYouRoute
+  CategorySlugRoute: typeof CategorySlugRoute
+  ProductManagementLoginRoute: typeof ProductManagementLoginRoute
+  ProductSlugRoute: typeof ProductSlugRoute
+  ProductManagementIndexRoute: typeof ProductManagementIndexRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -66,6 +206,20 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/checkout': {
+      id: '/checkout'
+      path: '/checkout'
+      fullPath: '/checkout'
+      preLoaderRoute: typeof CheckoutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/management': {
@@ -82,13 +236,79 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof OrderRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/privacy-policy': {
+      id: '/privacy-policy'
+      path: '/privacy-policy'
+      fullPath: '/privacy-policy'
+      preLoaderRoute: typeof PrivacyPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/return-refund-policy': {
+      id: '/return-refund-policy'
+      path: '/return-refund-policy'
+      fullPath: '/return-refund-policy'
+      preLoaderRoute: typeof ReturnRefundPolicyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terms': {
+      id: '/terms'
+      path: '/terms'
+      fullPath: '/terms'
+      preLoaderRoute: typeof TermsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/thank-you': {
+      id: '/thank-you'
+      path: '/thank-you'
+      fullPath: '/thank-you'
+      preLoaderRoute: typeof ThankYouRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/category/$slug': {
+      id: '/category/$slug'
+      path: '/category/$slug'
+      fullPath: '/category/$slug'
+      preLoaderRoute: typeof CategorySlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product-management/': {
+      id: '/product-management/'
+      path: '/product-management'
+      fullPath: '/product-management/'
+      preLoaderRoute: typeof ProductManagementIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product-management/login': {
+      id: '/product-management/login'
+      path: '/product-management/login'
+      fullPath: '/product-management/login'
+      preLoaderRoute: typeof ProductManagementLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/product/$slug': {
+      id: '/product/$slug'
+      path: '/product/$slug'
+      fullPath: '/product/$slug'
+      preLoaderRoute: typeof ProductSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  CheckoutRoute: CheckoutRoute,
+  ContactRoute: ContactRoute,
   ManagementRoute: ManagementRoute,
   OrderRoute: OrderRoute,
+  PrivacyPolicyRoute: PrivacyPolicyRoute,
+  ReturnRefundPolicyRoute: ReturnRefundPolicyRoute,
+  TermsRoute: TermsRoute,
+  ThankYouRoute: ThankYouRoute,
+  CategorySlugRoute: CategorySlugRoute,
+  ProductManagementLoginRoute: ProductManagementLoginRoute,
+  ProductSlugRoute: ProductSlugRoute,
+  ProductManagementIndexRoute: ProductManagementIndexRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
