@@ -9,9 +9,10 @@ import { ProductCard } from "@/components/store/ProductCard";
 import { StoreHeader } from "@/components/store/StoreHeader";
 
 export const Route = createFileRoute("/")({
-  validateSearch: (search: Record<string, unknown>) => ({
-    q: typeof search.q === "string" ? search.q : "",
-  }),
+  validateSearch: (search: Record<string, unknown>) => {
+    const q = typeof search["q"] === "string" ? search["q"].trim() : "";
+    return q ? { q } : {};
+  },
   head: () => ({
     meta: [
       { title: "GizmoZone BD | স্মার্ট গ্যাজেটের নির্ভরযোগ্য দোকান" },
@@ -28,6 +29,17 @@ export const Route = createFileRoute("/")({
 function HomePage() {
   const { q = "" } = Route.useSearch();
   const [catalog, setCatalog] = useState(products);
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.has("q") && !url.searchParams.get("q")?.trim()) {
+      url.searchParams.delete("q");
+      window.history.replaceState(
+        window.history.state,
+        "",
+        `${url.pathname}${url.search}${url.hash}`,
+      );
+    }
+  }, []);
   useEffect(() => {
     void fetchPublishedProducts().then(setCatalog);
   }, []);
