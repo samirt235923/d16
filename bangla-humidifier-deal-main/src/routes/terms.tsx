@@ -2,6 +2,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft } from "lucide-react";
 import { StoreFooter } from "@/components/store/StoreChrome";
 import { StoreHeader } from "@/components/store/StoreHeader";
+import { siteConfig } from "@/data/siteConfig";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -97,7 +98,8 @@ function TermsPage() {
             <div className="rounded-2xl border border-border bg-secondary/50 p-4">
               <h3 className="text-base font-extrabold text-foreground">Contact Us</h3>
               <div className="mt-3 space-y-2 text-sm text-foreground">
-                <p><strong>Phone / WhatsApp:</strong> 01935710706</p>
+                <p><strong>Phone:</strong> {siteConfig.phone}</p>
+                <p><strong>WhatsApp:</strong> {siteConfig.whatsapp}</p>
                 <p><strong>Office Address:</strong> Matuail jatrabari Dhaka 1362</p>
               </div>
             </div>

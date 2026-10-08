@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { categories } from "@/data/categories";
+import { markdownToHtml } from "@/lib/markdown";
 import { getSupabaseClient } from "@/lib/supabase";
 import { PRODUCT_COLUMNS, type ProductRow, slugify } from "@/lib/product-repository";
 
@@ -84,6 +85,8 @@ type FormState = {
   return_information: string;
   features: Feature[];
   specifications: Spec[];
+  specifications_format: "structured" | "markdown";
+  specifications_markdown: string;
   how_to_use: string[];
 };
 
@@ -128,6 +131,8 @@ const blankForm: FormState = {
   return_information: "",
   features: [],
   specifications: [],
+  specifications_format: "structured",
+  specifications_markdown: "",
   how_to_use: [],
 };
 const imageLimit = 10 * 1024 * 1024;
@@ -345,7 +350,12 @@ function ProductManagementPage() {
     delivery_information: row.delivery_information,
     return_information: row.return_information,
     features: row.key_features ?? [],
-    specifications: row.specifications ?? [],
+    specifications: Array.isArray(row.specifications) ? row.specifications : [],
+    specifications_format: Array.isArray(row.specifications) ? "structured" : "markdown",
+    specifications_markdown:
+      !Array.isArray(row.specifications) && row.specifications?.format === "markdown"
+        ? row.specifications.content
+        : "",
     how_to_use: row.how_to_use?.map((step) => `${step.title}: ${step.description}`) ?? [],
   });
   const setField = (key: keyof FormState, value: string | boolean | ProductVariant[]) =>
@@ -453,7 +463,10 @@ function ProductManagementPage() {
         .split("\n")
         .map((item) => item.trim())
         .filter(Boolean),
-      specifications: form.specifications.filter((item) => item.label.trim() || item.value.trim()),
+      specifications:
+        form.specifications_format === "markdown"
+          ? { format: "markdown", content: form.specifications_markdown }
+          : form.specifications.filter((item) => item.label.trim() || item.value.trim()),
       how_to_use: form.how_to_use.filter(Boolean).map((item, index) => ({
         step: String(index + 1),
         title: item.split(":")[0],
@@ -1217,6 +1230,10 @@ function Editor({
           <Section title="Specifications" eyebrow="STRUCTURED DATA">
             <SpecificationRepeater
               items={form.specifications}
+              format={form.specifications_format}
+              markdown={form.specifications_markdown}
+              onFormatChange={(format) => setField("specifications_format", format)}
+              onMarkdownChange={(markdown) => setField("specifications_markdown", markdown)}
               onChange={(items) => setField("specifications", items)}
             />
           </Section>
@@ -1584,136 +1601,124 @@ function Repeater({
 
 function SpecificationRepeater({
   items,
+  format,
+  markdown,
+  onFormatChange,
+  onMarkdownChange,
   onChange,
 }: {
   items: Spec[];
+  format: "structured" | "markdown";
+  markdown: string;
+  onFormatChange: (format: "structured" | "markdown") => void;
+  onMarkdownChange: (markdown: string) => void;
   onChange: (items: Spec[]) => void;
 }) {
   return (
     <div>
-      <div className="mb-3 flex items-center justify-between">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold">Specifications</h3>
           <p className="mt-1 text-xs text-muted-foreground">
-            Example: Specification: Product Model, Details: D16
+            {format === "structured"
+              ? "Add specification labels and details, or switch to Markdown."
+              : "Write specification content using Markdown."}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => onChange([...items, { label: "", value: "" }])}
-          className="inline-flex items-center gap-1 text-sm font-bold text-primary"
-        >
-          <Plus className="h-4 w-4" /> Add specification
-        </button>
-      </div>
-      <div className="space-y-3">
-        {items.map((item, index) => (
-          <div
-            className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
-            key={`${index}-${item.label}-${item.value}`}
-          >
-            <label className="text-xs font-bold text-muted-foreground">
-              Specification
-              <input
-                className="mt-1 w-full rounded-xl border bg-background p-3 text-sm font-normal"
-                value={item.label}
-                placeholder="Product Model"
-                onChange={(event) =>
-                  onChange(
-                    items.map((current, itemIndex) =>
-                      itemIndex === index ? { ...current, label: event.target.value } : current,
-                    ),
-                  )
-                }
-              />
-            </label>
-            <label className="text-xs font-bold text-muted-foreground">
-              Details
-              <input
-                className="mt-1 w-full rounded-xl border bg-background p-3 text-sm font-normal"
-                value={item.value}
-                placeholder="D16"
-                onChange={(event) =>
-                  onChange(
-                    items.map((current, itemIndex) =>
-                      itemIndex === index ? { ...current, value: event.target.value } : current,
-                    ),
-                  )
-                }
-              />
-            </label>
+        <div className="flex items-center gap-2">
+          <div className="flex rounded-lg border p-1" aria-label="Specifications format">
             <button
               type="button"
-              aria-label="Delete specification"
-              className="self-end rounded-xl border px-3 py-3 text-destructive"
-              onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+              aria-pressed={format === "structured"}
+              onClick={() => onFormatChange("structured")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${format === "structured" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
             >
-              <X className="h-4 w-4" />
+              Structured
+            </button>
+            <button
+              type="button"
+              aria-pressed={format === "markdown"}
+              onClick={() => onFormatChange("markdown")}
+              className={`rounded-md px-3 py-1.5 text-xs font-semibold ${format === "markdown" ? "bg-primary text-primary-foreground" : "text-muted-foreground"}`}
+            >
+              Markdown
             </button>
           </div>
-        ))}
-        {!items.length && (
-          <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
-            No specifications added yet.
-          </div>
-        )}
+          {format === "structured" && (
+            <button
+              type="button"
+              onClick={() => onChange([...items, { label: "", value: "" }])}
+              className="inline-flex items-center gap-1 text-sm font-bold text-primary"
+            >
+              <Plus className="h-4 w-4" /> Add specification
+            </button>
+          )}
+        </div>
       </div>
+      {format === "markdown" ? (
+        <textarea
+          rows={10}
+          value={markdown}
+          onChange={(event) => onMarkdownChange(event.target.value)}
+          className="w-full resize-y rounded-xl border bg-background p-4 font-mono text-sm leading-relaxed"
+          placeholder={"## Product specifications\n\n- **Model:** D16\n- **Capacity:** 180 ml\n- **Power:** USB"}
+        />
+      ) : (
+        <div className="space-y-3">
+          {items.map((item, index) => (
+            <div
+              className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+              key={`${index}-${item.label}-${item.value}`}
+            >
+              <label className="text-xs font-bold text-muted-foreground">
+                Specification
+                <input
+                  className="mt-1 w-full rounded-xl border bg-background p-3 text-sm font-normal"
+                  value={item.label}
+                  placeholder="Product Model"
+                  onChange={(event) =>
+                    onChange(
+                      items.map((current, itemIndex) =>
+                        itemIndex === index ? { ...current, label: event.target.value } : current,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <label className="text-xs font-bold text-muted-foreground">
+                Details
+                <input
+                  className="mt-1 w-full rounded-xl border bg-background p-3 text-sm font-normal"
+                  value={item.value}
+                  placeholder="D16"
+                  onChange={(event) =>
+                    onChange(
+                      items.map((current, itemIndex) =>
+                        itemIndex === index ? { ...current, value: event.target.value } : current,
+                      ),
+                    )
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                aria-label="Delete specification"
+                className="self-end rounded-xl border px-3 py-3 text-destructive"
+                onClick={() => onChange(items.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          ))}
+          {!items.length && (
+            <div className="rounded-xl border border-dashed p-5 text-center text-sm text-muted-foreground">
+              No specifications added yet.
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
-}
-
-function markdownToHtml(markdown: string) {
-  const escapeHtml = (value: string) =>
-    value
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;");
-  const inline = (value: string) =>
-    value
-      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a href="$2">$1</a>')
-      .replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>")
-      .replace(/__([^_]+)__/g, "<strong>$1</strong>")
-      .replace(/\*([^*]+)\*/g, "<em>$1</em>")
-      .replace(/_([^_]+)_/g, "<em>$1</em>");
-  const output: string[] = [];
-  let list: "ul" | "ol" | null = null;
-  const closeList = () => {
-    if (list) output.push(`</${list}>`);
-    list = null;
-  };
-  for (const rawLine of markdown.split(/\r?\n/)) {
-    const line = rawLine.trim();
-    if (!line) {
-      closeList();
-      continue;
-    }
-    const heading = line.match(/^(#{1,3})\s+(.+)$/);
-    const bullet = line.match(/^[-*]\s+(.+)$/);
-    const numbered = line.match(/^\d+\.\s+(.+)$/);
-    if (heading) {
-      closeList();
-      output.push(
-        `<h${heading[1].length}>${inline(escapeHtml(heading[2]))}</h${heading[1].length}>`,
-      );
-    } else if (bullet || numbered) {
-      const nextList = bullet ? "ul" : "ol";
-      if (list !== nextList) {
-        closeList();
-        list = nextList;
-        output.push(`<${list}>`);
-      }
-      output.push(`<li>${inline(escapeHtml((bullet ?? numbered)?.[1] ?? ""))}</li>`);
-    } else if (line.startsWith("> ")) {
-      closeList();
-      output.push(`<blockquote>${inline(escapeHtml(line.slice(2)))}</blockquote>`);
-    } else {
-      closeList();
-      output.push(`<p>${inline(escapeHtml(line))}</p>`);
-    }
-  }
-  closeList();
-  return output.join("");
 }
 
 function RichEditor({
@@ -2232,14 +2237,21 @@ function Preview({
               ))}
             </ul>
             <h3 className="mt-6 text-xl font-extrabold">Specifications</h3>
-            <div className="mt-3 divide-y">
-              {form.specifications.map((spec) => (
-                <div className="grid grid-cols-2 gap-2 py-2 text-sm" key={spec.label}>
-                  <span className="text-muted-foreground">{spec.label}</span>
-                  <strong>{spec.value}</strong>
-                </div>
-              ))}
-            </div>
+            {form.specifications_format === "markdown" ? (
+              <div
+                className="prose mt-3 max-w-none text-sm [&_h2]:font-extrabold [&_h3]:font-bold [&_li]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_ul]:list-disc"
+                dangerouslySetInnerHTML={{ __html: markdownToHtml(form.specifications_markdown) }}
+              />
+            ) : (
+              <div className="mt-3 divide-y">
+                {form.specifications.map((spec) => (
+                  <div className="grid grid-cols-2 gap-2 py-2 text-sm" key={spec.label}>
+                    <span className="text-muted-foreground">{spec.label}</span>
+                    <strong>{spec.value}</strong>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>

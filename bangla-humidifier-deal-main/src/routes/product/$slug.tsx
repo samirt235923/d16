@@ -1,9 +1,10 @@
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Check, ChevronLeft, ChevronRight, ShoppingCart } from "lucide-react";
+import { Check, ChevronLeft, ChevronRight, LoaderCircle, ShoppingCart } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { getDiscountPercent, getProduct, products } from "@/data/products";
 import type { Product } from "@/data/products";
 import { fetchPublishedProducts } from "@/lib/product-repository";
+import { markdownToHtml } from "@/lib/markdown";
 import { siteConfig } from "@/data/siteConfig";
 import { addToCart } from "@/lib/cart";
 import { getAnonymousSupabaseClient } from "@/lib/supabase";
@@ -30,11 +31,15 @@ export const Route = createFileRoute("/product/$slug")({
 function ProductPage() {
   const { slug } = Route.useParams();
   const [catalog, setCatalog] = useState(products);
+  const [catalogLoaded, setCatalogLoaded] = useState(false);
   useEffect(() => {
-    void fetchPublishedProducts().then(setCatalog);
+    void fetchPublishedProducts().then((publishedProducts) => {
+      setCatalog(publishedProducts);
+      setCatalogLoaded(true);
+    });
   }, []);
   const product = catalog.find((item) => item.slug === slug) ?? getProduct(slug);
-  if (!product) return <NotFoundProduct />;
+  if (!product) return catalogLoaded ? <NotFoundProduct /> : <LoadingProduct />;
   const related = catalog
     .filter(
       (item) =>
@@ -71,6 +76,17 @@ function ProductPage() {
       </main>
       <StoreFooter />
     </div>
+  );
+}
+
+function LoadingProduct() {
+  return (
+    <main className="grid min-h-screen place-items-center bg-background px-4 text-center">
+      <div role="status" aria-live="polite">
+        <LoaderCircle className="mx-auto h-9 w-9 animate-spin text-primary" aria-hidden="true" />
+        <p className="mt-4 text-muted-foreground">পণ্য লোড হচ্ছে...</p>
+      </div>
+    </main>
   );
 }
 
@@ -273,17 +289,19 @@ function ProductHero({ product }: { product: NonNullable<ReturnType<typeof getPr
               onClick={buy}
               className="btn-cta flex-1 disabled:opacity-50"
             >
-              অর্ডার করুন
+              অর্ডার করুন এখনই
             </button>
           </div>
-          <button
-            type="button"
-            disabled={!product.inStock}
-            onClick={add}
-            className="mt-3 inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-xl border border-primary bg-card px-4 font-bold text-primary disabled:opacity-50"
-          >
-            <ShoppingCart className="h-4 w-4" /> কার্টে যোগ করুন
-          </button>
+          <div className="mt-3 flex justify-end">
+            <button
+              type="button"
+              disabled={!product.inStock}
+              onClick={add}
+              className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-3 py-1.5 text-xs font-semibold text-muted-foreground transition hover:border-primary hover:text-primary disabled:opacity-50"
+            >
+              <ShoppingCart className="h-3.5 w-3.5" /> কার্টে যোগ করুন
+            </button>
+          </div>
           <div className="mt-5 grid grid-cols-2 gap-2 text-xs font-semibold text-muted-foreground sm:grid-cols-4">
             <span>💵 হাতে পেয়ে টাকা</span>
             <span>🚚 সারা দেশে delivery</span>
@@ -346,14 +364,23 @@ function ProductBody({
         </div>
         <div className="rounded-3xl bg-card p-5 shadow-card">
           <h2 className="text-xl font-extrabold">Product Specifications</h2>
-          <div className="mt-4 divide-y divide-border text-sm">
-            {product.specifications.map((spec) => (
-              <div key={spec.label} className="grid grid-cols-2 gap-3 py-2">
-                <span className="text-muted-foreground">{spec.label}</span>
-                <span className="font-semibold">{spec.value}</span>
-              </div>
-            ))}
-          </div>
+          {product.specificationsMarkdown ? (
+            <div
+              className="prose mt-4 max-w-none text-sm text-muted-foreground [&_h2]:font-extrabold [&_h3]:font-bold [&_li]:ml-5 [&_ol]:list-decimal [&_p]:mb-3 [&_ul]:list-disc"
+              dangerouslySetInnerHTML={{
+                __html: markdownToHtml(product.specificationsMarkdown),
+              }}
+            />
+          ) : (
+            <div className="mt-4 divide-y divide-border text-sm">
+              {product.specifications.map((spec) => (
+                <div key={spec.label} className="grid grid-cols-2 gap-3 py-2">
+                  <span className="text-muted-foreground">{spec.label}</span>
+                  <span className="font-semibold">{spec.value}</span>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
       {product.videos.length > 0 && (

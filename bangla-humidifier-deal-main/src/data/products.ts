@@ -21,6 +21,7 @@ import feedback10 from "@/assets/fc6c8028-3adb-4025-a350-cb2d0619edbc.webp";
 
 export type ProductFeature = { icon: string; title: string; description: string };
 export type ProductSpec = { label: string; value: string };
+export type ProductSpecMarkdown = { format: "markdown"; content: string };
 export type ProductStep = { step: string; title: string; description: string };
 export type ProductFaq = { question: string; answer: string };
 export type ProductVariant = {
@@ -58,6 +59,7 @@ export type Product = {
   longDescription: string[];
   keyPoints: string[];
   specifications: ProductSpec[];
+  specificationsMarkdown?: string;
   howToUse: ProductStep[];
   faqs: ProductFaq[];
   seoTitle: string;

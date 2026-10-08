@@ -1,4 +1,5 @@
 import type { Product } from "@/data/products";
+import type { ProductSpecMarkdown } from "@/data/products";
 import { products as fallbackProducts } from "@/data/products";
 import { getAnonymousSupabaseClient } from "@/lib/supabase";
 
@@ -24,7 +25,7 @@ export type ProductRow = {
   video_url: string | null;
   key_features: Product["features"];
   benefits: string[];
-  specifications: Product["specifications"];
+  specifications: Product["specifications"] | ProductSpecMarkdown;
   how_to_use: Product["howToUse"];
   whats_included: string;
   customer_information: string;
@@ -82,7 +83,11 @@ export function rowToProduct(row: ProductRow): Product {
     features: row.key_features ?? [],
     longDescription: row.description ? row.description.split("\n\n") : [],
     keyPoints: row.benefits ?? [],
-    specifications: row.specifications ?? [],
+    specifications: Array.isArray(row.specifications) ? row.specifications : [],
+    specificationsMarkdown:
+      !Array.isArray(row.specifications) && row.specifications?.format === "markdown"
+        ? row.specifications.content
+        : undefined,
     howToUse: row.how_to_use ?? [],
     faqs: [],
     seoTitle: row.seo_title || row.name,
