@@ -7,6 +7,7 @@ import { addToCart, cartTotal, readCart, writeCart, type CartItem } from "@/lib/
 import { StoreFooter } from "@/components/store/StoreChrome";
 import { StoreHeader } from "@/components/store/StoreHeader";
 import { getAnonymousSupabaseClient } from "@/lib/supabase";
+import { recordPendingPurchase } from "@/lib/purchase-tracking";
 
 export const Route = createFileRoute("/checkout")({
   validateSearch: (search: Record<string, unknown>) => ({
@@ -119,6 +120,7 @@ function CheckoutPage() {
           });
         if (dbError) throw dbError;
       }
+      recordPendingPurchase(total);
       writeCart([]);
       navigate({ to: "/thank-you", search: { phone: form.phone.trim(), total } });
     } catch {
