@@ -11,6 +11,6 @@ export const siteConfig = {
   },
   codText: "ক্যাশ অন ডেলিভারি — পণ্য হাতে পেয়ে টাকা পরিশোধ করুন",
   footerInfo: "সারা বাংলাদেশে নির্ভরযোগ্য গ্যাজেট ডেলিভারি",
-  facebookPixelId: "1782106083097801",
+  facebookPixelId: "1121746543967244",
   gtmId: "",
 } as const;
